@@ -99,6 +99,7 @@ web/.dart_tool/
 
 # Emacs/Vim/Sublime swap files
 *~ 
+
 *.swp
 *.swo
 
