@@ -8,7 +8,12 @@ import '../theme/theme_provider.dart';
 
 class AppNavBar extends StatefulWidget implements PreferredSizeWidget {
   final String title;
-  const AppNavBar({Key? key, this.title = ''}) : super(key: key);
+  final bool automaticallyImplyLeading;
+  const AppNavBar({
+    Key? key,
+    this.title = '',
+    this.automaticallyImplyLeading = true,
+  }) : super(key: key);
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
@@ -23,11 +28,9 @@ class _AppNavBarState extends State<AppNavBar> {
   @override
   void initState() {
     super.initState();
-    // 1) Check initial state
     Connectivity().checkConnectivity().then((status) {
       setState(() => _isOnline = status != ConnectivityResult.none);
     });
-    // 2) Listen for changes
     _sub = Connectivity().onConnectivityChanged.listen((status) {
       setState(() => _isOnline = status != ConnectivityResult.none);
     });
@@ -46,11 +49,11 @@ class _AppNavBarState extends State<AppNavBar> {
 
     return AppBar(
       title: Text(widget.title),
+      automaticallyImplyLeading: widget.automaticallyImplyLeading,
       backgroundColor: Theme.of(context).colorScheme.surface,
       foregroundColor: Theme.of(context).colorScheme.onSurface,
       elevation: 1,
       actions: [
-        // Connectivity indicator toggles red/green live
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Icon(
@@ -58,7 +61,6 @@ class _AppNavBarState extends State<AppNavBar> {
             color: _isOnline ? Colors.green : Colors.red,
           ),
         ),
-        // Theme toggle
         IconButton(
           icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
           onPressed: () => themeProv.toggleTheme(!isDark),

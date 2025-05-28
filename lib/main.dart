@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'landing_page.dart';
-// import 'login_screen.dart';
+import 'login_screen.dart';
 import 'signup_screen.dart';
 import 'dashboard.dart';
 import 'theme/theme_provider.dart';
@@ -45,7 +45,7 @@ class PCISurveyApp extends StatelessWidget {
       initialRoute: '/',  // <-- set initial route
       routes: {
         '/': (context) => const LandingPage(),
-        // '/login': (context) => const LoginScreen(),
+        '/login': (context) => const LoginScreen(),
         '/signup': (context) => const SignupScreen(),
         '/dashboard': (context) => const DashboardScreen(),
       },

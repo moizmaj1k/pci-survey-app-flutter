@@ -138,8 +138,8 @@ class DatabaseHelper {
     return res.isNotEmpty ? res.first : null;
   }
 
-  Future<List<Map<String,dynamic>>> getAllDistricts() async {
-    return (await database).query('districts');
+  Future<List<Map<String,dynamic>>> getAllUsers() async {
+    return (await database).query('users');
   }
 
   Future<void> saveCurrentUser(int id) async {
@@ -151,6 +151,25 @@ class DatabaseHelper {
   Future<int?> getCurrentUserId() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getInt('currentUserId');
+  }
+
+
+
+  /// Looks up a district row by name.
+  Future<Map<String, dynamic>?> getDistrictByName(String districtName) async {
+    final db = await database;
+    final result = await db.query(
+      'districts',
+      where: 'district_name = ?',
+      whereArgs: [districtName],
+      limit: 1,
+    );
+    return result.isNotEmpty ? result.first : null;
+  }
+
+  /// Fetches all districts.
+  Future<List<Map<String, dynamic>>> getAllDistricts() async {
+    return (await database).query('districts');
   }
 
 
@@ -170,6 +189,66 @@ class DatabaseHelper {
       'user_id': userId,
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
+
+  /// Returns the enumerator + district name for the logged in user (or null).
+  Future<Map<String, dynamic>?> getEnumeratorDetails() async {
+    final db = await database;
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getInt('currentUserId');
+    if (userId == null) return null;
+
+    final results = await db.rawQuery('''
+      SELECT e.id, e.name, e.phone, e.district_id, d.district_name AS district
+      FROM enumerators e
+      JOIN districts d ON e.district_id = d.id
+      WHERE e.user_id = ? LIMIT 1
+    ''', [userId]);
+
+    return results.isNotEmpty ? results.first : null;
+  }
+
+  /// Updates the enumerator’s name, phone, and district for the current user.
+  Future<void> updateEnumeratorDetails(
+    String name,
+    String phone,
+    String newDistrictName,
+  ) async {
+    final db = await database;
+
+    final districtRow = await getDistrictByName(newDistrictName);
+    if (districtRow == null) throw Exception('District not found');
+
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getInt('currentUserId');
+    if (userId == null) throw Exception('No logged in user');
+
+    await db.update(
+      'enumerators',
+      {'name': name, 'phone': phone, 'district_id': districtRow['id']},
+      where: 'user_id = ?',
+      whereArgs: [userId],
+    );
+  }
+
+  /// Fetches all enumerators along with their district name.
+  Future<List<Map<String, dynamic>>> getAllEnumerators() async {
+    final db = await database;
+    final rows = await db.rawQuery('''
+      SELECT
+        e.id,
+        e.name,
+        e.phone,
+        e.district_id,
+        d.district_name AS district,
+        e.user_id,
+        e.is_synced
+      FROM enumerators e
+      LEFT JOIN districts d ON e.district_id = d.id
+      ORDER BY e.id
+    ''');
+    return rows;
+  }
+
 
 
 }
