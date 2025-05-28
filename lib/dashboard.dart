@@ -89,6 +89,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
           bottomNavigationBar: BottomNavigationBar(
             currentIndex: _currentIndex,
             type: BottomNavigationBarType.fixed,
+              // Make the selected icon larger + primary color
+            selectedItemColor: Theme.of(context).colorScheme.primary,
+            unselectedItemColor: Colors.grey,
+            selectedIconTheme: IconThemeData(
+              size: 28,                                          // larger size
+              color: Theme.of(context).colorScheme.primary,      // primary color
+            ),
+            unselectedIconTheme: const IconThemeData(
+              size: 20,                                          // normal size
+              color: Colors.grey,                                // grey out
+            ),
             onTap: (i) async {
               // first, location must be enabled for New, View, Upload
               if (!_locationEnabled && (i == 1 || i == 2 || i == 3)) {
@@ -285,40 +296,42 @@ class _HomeTabState extends State<HomeTab> {
       );
     }
 
-    // Registered: show details + metrics
-    final enumr = widget.enumerator!;
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Hello, ${enumr['name']}',
-                style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 8),
-            Card(
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-              elevation: 2,
+  // Registered: show details + metrics + intro card
+  final enumr = widget.enumerator!;
+  return SafeArea(
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Hello, ${enumr['name']}',
+              style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 8),
 
-              color: Theme.of(context).brightness == Brightness.dark
+          // Enumerator details card
+          Card(
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8)),
+            elevation: 2,
+            color: Theme.of(context).brightness == Brightness.dark
                 ? Colors.grey.shade900
                 : Colors.grey.shade100,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  children: [
-                    _infoRow('Your Registered Phone', enumr['phone']),
-                    _infoRow('District Being Covered', enumr['district']),
-                  ],
-                ),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                children: [
+                  _infoRow('Your Registered Phone', enumr['phone']),
+                  _infoRow('District Being Covered', enumr['district']),
+                ],
               ),
             ),
-            const SizedBox(height: 12),
+          ),
+          const SizedBox(height: 12),
 
-            // ─── New “Change District” button ───────────────────
-            SizedBox(
-              width: double.infinity,
+          // Change district button
+          Center(
+            child: FractionallySizedBox(
+              widthFactor: 0.9,    // 80% of available width
               child: OutlinedButton.icon(
                 icon: const Icon(Icons.edit_location),
                 label: const Text('Change District'),
@@ -331,53 +344,129 @@ class _HomeTabState extends State<HomeTab> {
                 ),
               ),
             ),
-            const SizedBox(height: 24),
-            Expanded(
-              child: GridView.count(
-                crossAxisCount: 2,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-                childAspectRatio: 1.2,
+          ),
+          const SizedBox(height: 12),
+
+          // Metrics + Intro combined scroll area
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
                 children: [
-                  _AsyncMetricCard(
-                    label: 'Completed',
-                    icon: Icons.check_circle,
-                    color: AppColors.success,
-                    futureCount: Future.value(0),
+                  // ─── Metric Cards ─────────────────────────────
+                  GridView.count(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 12,      // tighter gutter
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 1.6,    // slightly more compact
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    children: [
+                      _AsyncMetricCard(
+                        label: 'Completed',
+                        icon: Icons.check_circle,
+                        color: AppColors.success,
+                        futureCount: Future.value(0),
+                      ),
+                      _AsyncMetricCard(
+                        label: 'Uncompleted',
+                        icon: Icons.pending,
+                        color: AppColors.danger,
+                        futureCount: Future.value(0),
+                      ),
+                      _AsyncMetricCard(
+                        label: 'Pushed',
+                        icon: Icons.cloud_done,
+                        color: Theme.of(context).colorScheme.primary,
+                        futureCount: Future.value(0),
+                      ),
+                      _AsyncMetricCard(
+                        label: 'Unpushed',
+                        icon: Icons.cloud_upload,
+                        color: AppColors.warning,
+                        futureCount: Future.value(0),
+                      ),
+                    ],
                   ),
-                  _AsyncMetricCard(
-                    label: 'Uncompleted',
-                    icon: Icons.pending,
-                    color: AppColors.danger,
-                    futureCount: Future.value(0),
+
+                  const SizedBox(height: 8),
+
+                  // ─── App Intro Card ───────────────────────────
+                  Card(
+                    margin: const EdgeInsets.symmetric(horizontal: 24),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    elevation: 6,
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            AppColors.primary.withOpacity(0.2),
+                            AppColors.info.withOpacity(0.2),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,  // left-align text
+                        children: [
+                          // Icon & heading stay centered
+                          Center(
+                            child: Column(
+                              children: [
+                                const Icon(Icons.map, size: 48, color: AppColors.primary),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Welcome to PCI Survey!',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.bold),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          // left-aligned body text
+                          Text(
+                            'Use the tabs below to:\n'
+                            '• New: start a fresh survey\n'
+                            '• View: browse your collected data\n'
+                            '• Upload: sync completed surveys\n'
+                            '• Settings: adjust your preferences',
+                            style: Theme.of(context).textTheme.bodyMedium,
+                            textAlign: TextAlign.start,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  _AsyncMetricCard(
-                    label: 'Pushed',
-                    icon: Icons.cloud_done,
-                    color: Theme.of(context).colorScheme.primary,
-                    futureCount: Future.value(0),
-                  ),
-                  _AsyncMetricCard(
-                    label: 'Unpushed',
-                    icon: Icons.cloud_upload,
-                    color: AppColors.warning,
-                    futureCount: Future.value(0),
-                  ),
+                  const SizedBox(height: 8),
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
-    );
+    ),
+  );
+
   }
 
   /// Pops a dialog to let user pick a new district.
   Future<void> _showChangeDistrictDialog() async {
     int? newDistrictId = _districtId;
+
+    // Capture the screen context for the snackbar:
+    final screenContext = context;
+
     await showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
+      context: screenContext,
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Change District'),
         content: StatefulBuilder(
           builder: (ctx2, setDialogState) {
@@ -389,7 +478,7 @@ class _HomeTabState extends State<HomeTab> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 filled: true,
-                fillColor: Theme.of(context).colorScheme.surface,
+                fillColor: Theme.of(screenContext).colorScheme.surface,
               ),
               items: _districts.map((d) {
                 return DropdownMenuItem(
@@ -403,23 +492,26 @@ class _HomeTabState extends State<HomeTab> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
+            onPressed: () => Navigator.of(dialogContext).pop(),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
             onPressed: () async {
               if (newDistrictId == null) return;
-              Navigator.pop(ctx);
 
+              // Close the dialog first
+              Navigator.of(dialogContext).pop();
+
+              // Show loading state
               setState(() => _loading = true);
 
+              // Perform the update
               final db = DatabaseHelper();
-              // call your existing updateEnumeratorDetails
               final newName = _nameCtrl.text.trim();
               final newPhone = _phoneCtrl.text.trim();
               final newDistrictName = _districts
                   .firstWhere((d) => d['id'] == newDistrictId)['district_name']
-                  as String;
+                      as String;
 
               await db.updateEnumeratorDetails(
                 newName,
@@ -427,11 +519,21 @@ class _HomeTabState extends State<HomeTab> {
                 newDistrictName,
               );
 
+              // Update local state
               setState(() {
                 _districtId = newDistrictId;
                 _loading = false;
               });
-              widget.onRegistered(); // tell parent to re-fetch details
+
+              // Tell parent to refetch
+              widget.onRegistered();
+
+              // Finally, show success
+              CustomSnackbar.show(
+                screenContext,
+                'District updated successfully!',
+                type: SnackbarType.success,
+              );
             },
             child: const Text('Save'),
           ),

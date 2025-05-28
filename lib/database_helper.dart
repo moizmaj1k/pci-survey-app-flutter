@@ -105,6 +105,52 @@ class DatabaseHelper {
     for (var d in seedDistricts) {
       await db.insert('districts', d);
     }
+
+    // PCI Survey
+    await db.execute('''
+      CREATE TABLE pci_survey (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        district_id INTEGER NOT NULL,
+        road_name TEXT,
+        start_rd TEXT,
+        end_rd TEXT,
+        road_length REAL,
+        start_lat REAL,
+        start_lon REAL,
+        end_lat REAL,
+        end_lon REAL,
+        remarks TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_by INTEGER,
+        status TEXT DEFAULT 'draft',
+        is_synced INTEGER DEFAULT 0,
+        FOREIGN KEY (created_by) REFERENCES enumerators(id)
+          ON DELETE SET NULL ON UPDATE CASCADE,
+        FOREIGN KEY (district_id) REFERENCES districts(id)
+          ON DELETE SET NULL ON UPDATE CASCADE
+      )
+    ''');
+
+    // Distress Points
+    await db.execute('''
+      CREATE TABLE distress_point (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        survey_id INTEGER NOT NULL,
+        rd TEXT,
+        type TEXT,
+        distress_type TEXT,
+        severity TEXT,
+        quantity REAL,
+        quantity_unit TEXT,
+        latitude REAL,
+        longitude REAL,
+        pics TEXT,
+        recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (survey_id) REFERENCES pci_survey(id)
+          ON DELETE CASCADE
+      )
+    ''');
+
   }
 
   // USER METHODS
@@ -153,7 +199,9 @@ class DatabaseHelper {
     return prefs.getInt('currentUserId');
   }
 
-
+  
+  
+  // DISTRICT METHODS
 
   /// Looks up a district row by name.
   Future<Map<String, dynamic>?> getDistrictByName(String districtName) async {
@@ -171,6 +219,7 @@ class DatabaseHelper {
   Future<List<Map<String, dynamic>>> getAllDistricts() async {
     return (await database).query('districts');
   }
+
 
 
   // ENUMERATOR METHODS
@@ -250,5 +299,198 @@ class DatabaseHelper {
   }
 
 
+
+  // PCI SURVEY METHODS
+
+  /// Inserts a new PCI survey draft.
+  /// Only the “start” fields are required at creation time.
+  Future<int> insertPciSurvey({
+    required int districtId,
+    required String roadName,
+    required String startRd,
+    required double startLat,
+    required double startLon,
+    required int createdBy,
+  }) async {
+    final db = await database;
+    return db.insert(
+      'pci_survey',
+      {
+        'district_id':   districtId,
+        'road_name':     roadName,
+        'start_rd':      startRd,
+        'start_lat':     startLat,
+        'start_lon':     startLon,
+        'created_by':    createdBy,
+        // status defaults to 'draft', is_synced defaults to 0
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// Completes an existing survey by writing its “end” fields and computing length.
+  Future<int> completePciSurvey({
+    required int surveyId,
+    required String endRd,
+    required double endLat,
+    required double endLon,
+    required double roadLength,
+  }) async {
+    final db = await database;
+    return db.update(
+      'pci_survey',
+      {
+        'end_rd':     endRd,
+        'end_lat':    endLat,
+        'end_lon':    endLon,
+        'road_length':roadLength,
+        'status':     'complete',
+      },
+      where: 'id = ?',
+      whereArgs: [surveyId],
+    );
+  }
+
+  /// Fetches all surveys matching the given status (e.g. 'draft', 'complete').
+  Future<List<Map<String, dynamic>>> getSurveysByStatus(String status) async {
+    final db = await database;
+    return db.query(
+      'pci_survey',
+      where: 'status = ?',
+      whereArgs: [status],
+      orderBy: 'created_at DESC',
+    );
+  }
+
+  /// Get a single survey by its ID.
+  Future<Map<String, dynamic>?> getSurveyById(int id) async {
+    final db = await database;
+    final results = await db.query(
+      'pci_survey',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    return results.isNotEmpty ? results.first : null;
+  }
+
+  /// Fetch all surveys, regardless of status.
+  Future<List<Map<String, dynamic>>> getAllPciSurveys() async {
+    final db = await database;
+    return db.query('pci_survey', orderBy: 'created_at DESC');
+  }
+
+
+
+  // DISTRESS POINT METHODS
+
+  // INSERT a new distress record
+  Future<int> insertDistressPoint({
+    required int surveyId,
+    required String rd,
+    String? type,
+    String? distressType,
+    String? severity,
+    double? quantity,
+    String? quantityUnit,
+    required double latitude,
+    required double longitude,
+    String? pics,               // comma-separated paths or JSON array
+  }) async {
+    final db = await database;
+    return db.insert(
+      'distress_point',
+      {
+        'survey_id':     surveyId,
+        'rd':            rd,
+        'type':          type,
+        'distress_type': distressType,
+        'severity':      severity,
+        'quantity':      quantity,
+        'quantity_unit': quantityUnit,
+        'latitude':      latitude,
+        'longitude':     longitude,
+        'pics':          pics,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  // FETCH all distress records for one survey
+  Future<List<Map<String, dynamic>>> getDistressBySurvey(int surveyId) async {
+    final db = await database;
+    return db.query(
+      'distress_point',
+      where: 'survey_id = ?',
+      whereArgs: [surveyId],
+      orderBy: 'recorded_at ASC',
+    );
+  }
+
+  // FETCH a single distress record by its ID
+  Future<Map<String, dynamic>?> getDistressPointById(int id) async {
+    final db = await database;
+    final rows = await db.query(
+      'distress_point',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    return rows.isNotEmpty ? rows.first : null;
+  }
+
+  // UPDATE an existing distress record (you can update any subset of columns)
+  Future<int> updateDistressPoint({
+    required int id,
+    String? rd,
+    String? type,
+    String? distressType,
+    String? severity,
+    double? quantity,
+    String? quantityUnit,
+    double? latitude,
+    double? longitude,
+    String? pics,
+  }) async {
+    final db = await database;
+    final data = <String, dynamic>{};
+    if (rd != null)            data['rd'] = rd;
+    if (type != null)          data['type'] = type;
+    if (distressType != null)  data['distress_type'] = distressType;
+    if (severity != null)      data['severity'] = severity;
+    if (quantity != null)      data['quantity'] = quantity;
+    if (quantityUnit != null)  data['quantity_unit'] = quantityUnit;
+    if (latitude != null)      data['latitude'] = latitude;
+    if (longitude != null)     data['longitude'] = longitude;
+    if (pics != null)          data['pics'] = pics;
+
+    if (data.isEmpty) return 0; // nothing to update
+
+    return db.update(
+      'distress_point',
+      data,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// Returns all distress points (for your “Distress” tab).
+  Future<List<Map<String, dynamic>>> getAllDistressPoints() async {
+    final db = await database;
+    return db.query(
+      'distress_point',
+      orderBy: 'recorded_at ASC',
+    );
+  }
+
+  // DELETE a distress record by ID
+  Future<int> deleteDistressPoint(int id) async {
+    final db = await database;
+    return db.delete(
+      'distress_point',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
 
 }
