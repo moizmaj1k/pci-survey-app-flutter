@@ -363,7 +363,7 @@ class DatabaseHelper {
   }
 
   /// Get a single survey by its ID.
-  Future<Map<String, dynamic>?> getSurveyById(int id) async {
+  Future<Map<String, dynamic>?> getPciSurveyById(int id) async {
     final db = await database;
     final results = await db.query(
       'pci_survey',

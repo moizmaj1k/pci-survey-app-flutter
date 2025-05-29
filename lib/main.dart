@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:pci_survey_application/survey_dashboard.dart';
 import 'package:provider/provider.dart';
 import 'landing_page.dart';
 import 'login_screen.dart';
@@ -44,10 +45,14 @@ class PCISurveyApp extends StatelessWidget {
       themeMode: themeProvider.themeMode,
       initialRoute: '/',  // <-- set initial route
       routes: {
-        '/': (context) => const LandingPage(),
-        '/login': (context) => const LoginScreen(),
-        '/signup': (context) => const SignupScreen(),
-        '/dashboard': (context) => const DashboardScreen(),
+        '/':            (_) => const LandingPage(),
+        '/login':       (_) => const LoginScreen(),
+        '/signup':      (_) => const SignupScreen(),
+        '/dashboard':   (_) => const DashboardScreen(),
+        '/surveyDashboard': (context) {
+          final surveyId = ModalRoute.of(context)!.settings.arguments as int;
+          return SurveyDashboard(surveyId: surveyId);
+        },
       },
       onUnknownRoute: (_) => MaterialPageRoute(
         builder: (context) => const LandingPage(),

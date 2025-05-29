@@ -1,5 +1,6 @@
 // lib/dashboard_screen.dart
 import 'dart:async';
+import 'package:pci_survey_application/survey_dashboard.dart';
 import 'package:pci_survey_application/widgets/custom_snackbar.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:geolocator/geolocator.dart';
@@ -296,164 +297,164 @@ class _HomeTabState extends State<HomeTab> {
       );
     }
 
-  // Registered: show details + metrics + intro card
-  final enumr = widget.enumerator!;
-  return SafeArea(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text('Hello, ${enumr['name']}',
-              style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 8),
+    // Registered: show details + metrics + intro card
+    final enumr = widget.enumerator!;
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Hello, ${enumr['name']}',
+                style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
 
-          // Enumerator details card
-          Card(
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8)),
-            elevation: 2,
-            color: Theme.of(context).brightness == Brightness.dark
-                ? Colors.grey.shade900
-                : Colors.grey.shade100,
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                children: [
-                  _infoRow('Your Registered Phone', enumr['phone']),
-                  _infoRow('District Being Covered', enumr['district']),
-                ],
+            // Enumerator details card
+            Card(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+              elevation: 2,
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.grey.shade900
+                  : Colors.grey.shade100,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  children: [
+                    _infoRow('Your Registered Phone', enumr['phone']),
+                    _infoRow('District Being Covered', enumr['district']),
+                  ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 12),
+            const SizedBox(height: 12),
 
-          // Change district button
-          Center(
-            child: FractionallySizedBox(
-              widthFactor: 0.9,    // 80% of available width
-              child: OutlinedButton.icon(
-                icon: const Icon(Icons.edit_location),
-                label: const Text('Change District'),
-                onPressed: _showChangeDistrictDialog,
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: Theme.of(context).colorScheme.primary),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+            // Change district button
+            Center(
+              child: FractionallySizedBox(
+                widthFactor: 0.9,    // 80% of available width
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.edit_location),
+                  label: const Text('Change District'),
+                  onPressed: _showChangeDistrictDialog,
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: Theme.of(context).colorScheme.primary),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 12),
+            const SizedBox(height: 12),
 
-          // Metrics + Intro combined scroll area
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  // ─── Metric Cards ─────────────────────────────
-                  GridView.count(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,      // tighter gutter
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 1.6,    // slightly more compact
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                    children: [
-                      _AsyncMetricCard(
-                        label: 'Completed',
-                        icon: Icons.check_circle,
-                        color: AppColors.success,
-                        futureCount: Future.value(0),
-                      ),
-                      _AsyncMetricCard(
-                        label: 'Uncompleted',
-                        icon: Icons.pending,
-                        color: AppColors.danger,
-                        futureCount: Future.value(0),
-                      ),
-                      _AsyncMetricCard(
-                        label: 'Pushed',
-                        icon: Icons.cloud_done,
-                        color: Theme.of(context).colorScheme.primary,
-                        futureCount: Future.value(0),
-                      ),
-                      _AsyncMetricCard(
-                        label: 'Unpushed',
-                        icon: Icons.cloud_upload,
-                        color: AppColors.warning,
-                        futureCount: Future.value(0),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  // ─── App Intro Card ───────────────────────────
-                  Card(
-                    margin: const EdgeInsets.symmetric(horizontal: 24),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    elevation: 6,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            AppColors.primary.withOpacity(0.2),
-                            AppColors.info.withOpacity(0.2),
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
+            // Metrics + Intro combined scroll area
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    // ─── Metric Cards ─────────────────────────────
+                    GridView.count(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 12,      // tighter gutter
+                      mainAxisSpacing: 12,
+                      childAspectRatio: 1.6,    // slightly more compact
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      children: [
+                        _AsyncMetricCard(
+                          label: 'Completed',
+                          icon: Icons.check_circle,
+                          color: AppColors.success,
+                          futureCount: Future.value(0),
                         ),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,  // left-align text
-                        children: [
-                          // Icon & heading stay centered
-                          Center(
-                            child: Column(
-                              children: [
-                                const Icon(Icons.map, size: 48, color: AppColors.primary),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Welcome to PCI Survey!',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.bold),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
+                        _AsyncMetricCard(
+                          label: 'Uncompleted',
+                          icon: Icons.pending,
+                          color: AppColors.danger,
+                          futureCount: Future.value(0),
+                        ),
+                        _AsyncMetricCard(
+                          label: 'Pushed',
+                          icon: Icons.cloud_done,
+                          color: Theme.of(context).colorScheme.primary,
+                          futureCount: Future.value(0),
+                        ),
+                        _AsyncMetricCard(
+                          label: 'Unpushed',
+                          icon: Icons.cloud_upload,
+                          color: AppColors.warning,
+                          futureCount: Future.value(0),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    // ─── App Intro Card ───────────────────────────
+                    Card(
+                      margin: const EdgeInsets.symmetric(horizontal: 24),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      elevation: 6,
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              AppColors.primary.withOpacity(0.2),
+                              AppColors.info.withOpacity(0.2),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,  // left-align text
+                          children: [
+                            // Icon & heading stay centered
+                            Center(
+                              child: Column(
+                                children: [
+                                  const Icon(Icons.map, size: 48, color: AppColors.primary),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Welcome to PCI Survey!',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(fontWeight: FontWeight.bold),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
-                          const SizedBox(height: 12),
-                          // left-aligned body text
-                          Text(
-                            'Use the tabs below to:\n'
-                            '• New: start a fresh survey\n'
-                            '• View: browse your collected data\n'
-                            '• Upload: sync completed surveys\n'
-                            '• Settings: adjust your preferences',
-                            style: Theme.of(context).textTheme.bodyMedium,
-                            textAlign: TextAlign.start,
-                          ),
-                        ],
+                            const SizedBox(height: 12),
+                            // left-aligned body text
+                            Text(
+                              'Use the tabs below to:\n'
+                              '• New: start a fresh survey\n'
+                              '• View: browse your collected data\n'
+                              '• Upload: sync completed surveys\n'
+                              '• Settings: adjust your preferences',
+                              style: Theme.of(context).textTheme.bodyMedium,
+                              textAlign: TextAlign.start,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                ],
+                    const SizedBox(height: 8),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
+    );
 
   }
 
@@ -607,15 +608,314 @@ class _AsyncMetricCard extends StatelessWidget {
 
 // -- Placeholder tabs for the other screens --
 
-class NewSurveyTab extends StatelessWidget {
+
+
+class NewSurveyTab extends StatefulWidget {
+  const NewSurveyTab({Key? key}) : super(key: key);
+
+  @override
+  State<NewSurveyTab> createState() => _NewSurveyTabState();
+}
+
+class _NewSurveyTabState extends State<NewSurveyTab> {
+  final _formKey       = GlobalKey<FormState>();
+  final _roadNameCtrl  = TextEditingController();
+  final _startRdCtrl   = TextEditingController();
+  List<Map<String, dynamic>> _districts = [];
+  int?    _selectedDistrictId;
+  double? _startLat, _startLon;
+  bool    _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDistricts();
+  }
+
+  Future<void> _loadDistricts() async {
+    _districts = await DatabaseHelper().getAllDistricts();
+    setState(() {});
+  }
+
+  Future<void> _fetchLocation() async {
+    // 1. Service enabled?
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      CustomSnackbar.show(
+        context,
+        'Location services are disabled. Please enable them in your device settings.',
+        type: SnackbarType.error,
+      );
+      return;
+    }
+
+    // 2. Permission check / request
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        CustomSnackbar.show(
+          context,
+          'Location permission denied.',
+          type: SnackbarType.error,
+        );
+        return;
+      }
+    }
+    if (permission == LocationPermission.deniedForever) {
+      CustomSnackbar.show(
+        context,
+        'Location permission permanently denied. Please enable it in Settings.',
+        type: SnackbarType.error,
+      );
+      return;
+    }
+
+    // 3. Finally, actually fetch
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+      setState(() {
+        _startLat = pos.latitude;
+        _startLon = pos.longitude;
+      });
+      CustomSnackbar.show(
+        context,
+        'Location fetched successfully.',
+        type: SnackbarType.success,
+      );
+    } catch (e) {
+      CustomSnackbar.show(
+        context,
+        'Failed to get current location.',
+        type: SnackbarType.error,
+      );
+    }
+  }
+
+
+  Future<void> _onStartPressed() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_startLat == null || _startLon == null) {
+      CustomSnackbar.show(
+        context,
+        'Please tap "Get Location" first',
+        type: SnackbarType.warning,
+      );
+      return;
+    }
+
+    setState(() => _loading = true);
+    final userId = await DatabaseHelper().getCurrentUserId() ?? 0;
+    try {
+      final newId = await DatabaseHelper().insertPciSurvey(
+        districtId: _selectedDistrictId!,
+        roadName: _roadNameCtrl.text.trim(),
+        startRd: _startRdCtrl.text.trim(),
+        startLat: _startLat!,
+        startLon: _startLon!,
+        createdBy: userId,
+      );
+      CustomSnackbar.show(
+        context,
+        'Survey #$newId started',
+        type: SnackbarType.success,
+      );
+
+      // ← only pass the surveyId
+      Navigator.pushNamed(
+        context,
+        SurveyDashboard.routeName,
+        arguments: newId,
+      );
+    } catch (_) {
+      CustomSnackbar.show(
+        context,
+        'Failed to start survey',
+        type: SnackbarType.error,
+      );
+    } finally {
+      setState(() => _loading = false);
+    }
+  }
+    
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child:
-          Text('Start a new survey', style: Theme.of(context).textTheme.bodyLarge),
+    // Compute text color for success button based on its background luminance
+    final startTextColor = AppColors.success.computeLuminance() > 0.5
+        ? Colors.black
+        : Colors.white;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        // ─── Instruction Card ───────────────────────────────
+        Card(
+          margin: const EdgeInsets.symmetric(horizontal: 24),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          elevation: 6,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.primary.withOpacity(0.2),
+                  AppColors.info.withOpacity(0.2),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,  // left-align text
+              children: [
+                // Icon & heading stay centered
+                Center(
+                  child: Column(
+                    children: [
+                      const Icon(Icons.info, size: 48, color: AppColors.primary),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Before you begin:',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // left-aligned body text
+                Text(
+                  '• Stand at the START location of the road.\n'
+                  '• Complete all the details in the form below.\n'
+                  '• Start the survey, record distress points.\n'
+                  '• Once survey is done, you’ll enter END details.',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                  textAlign: TextAlign.start,
+                ),
+              ],
+            ),
+          ),
+        ),
+        
+
+        const SizedBox(height: 24),
+
+        // ─── Section Heading ────────────────────────────────
+        Text(
+          'Enter Road Details to Start Survey',
+          style: Theme.of(context)
+              .textTheme
+              .titleLarge
+              ?.copyWith(fontWeight: FontWeight.w600),
+        ),
+
+        const SizedBox(height: 16),
+
+        // ─── Form ────────────────────────────────────────────
+        Form(
+          key: _formKey,
+          child: Column(children: [
+            DropdownButtonFormField<int>(
+              decoration: InputDecoration(
+                labelText: 'District',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              items: _districts
+                  .map((d) => DropdownMenuItem<int>(
+                        value: d['id'] as int,
+                        child: Text(d['district_name'] as String),
+                      ))
+                  .toList(),
+              onChanged: (v) => setState(() => _selectedDistrictId = v),
+              validator: (v) => v == null ? 'Select district' : null,
+            ),
+
+            const SizedBox(height: 12),
+
+            TextFormField(
+              controller: _roadNameCtrl,
+              decoration: InputDecoration(
+                labelText: 'Road Name',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              validator: (v) => (v == null || v.isEmpty) ? 'Enter road name' : null,
+            ),
+
+            const SizedBox(height: 12),
+
+            TextFormField(
+              controller: _startRdCtrl,
+              decoration: InputDecoration(
+                labelText: 'Start RD',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              validator: (v) => (v == null || v.isEmpty) ? 'Enter start RD' : null,
+            ),
+
+            const SizedBox(height: 12),
+
+            // ─── Get Location Button & Display ───────────────
+            Row(children: [
+              ElevatedButton.icon(
+                onPressed: _fetchLocation,
+                icon: const Icon(Icons.gps_fixed),
+                label: const Text('Get Location'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.light,
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+              const SizedBox(width: 16),
+              if (_startLat != null && _startLon != null)
+                Expanded(
+                  child: Text(
+                    '${_startLat!.toStringAsFixed(5)}, ${_startLon!.toStringAsFixed(5)}',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+            ]),
+
+            const SizedBox(height: 24),
+
+            // ─── Start Button ─────────────────────────────────
+            FractionallySizedBox(
+              widthFactor: 0.8, // 80% width
+              child: ElevatedButton(
+                onPressed: _loading ? null : _onStartPressed,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.success,
+                  foregroundColor: startTextColor,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape:
+                      RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                child: _loading
+                    ? const CircularProgressIndicator()
+                    : const Text('Start PCI Survey for this Road'),
+              ),
+            ),
+          ]),
+        ),
+      ]),
     );
   }
 }
+
+
+
+
+
+
+
 
 class ViewTab extends StatelessWidget {
   const ViewTab({Key? key}) : super(key: key);
