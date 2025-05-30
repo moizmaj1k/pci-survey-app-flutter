@@ -9,7 +9,6 @@ import 'database_helper.dart';
 
 class SurveyDashboard extends StatefulWidget {
   static const routeName = '/surveyDashboard';
-
   final int surveyId;
   const SurveyDashboard({Key? key, required this.surveyId}) : super(key: key);
 
@@ -19,15 +18,18 @@ class SurveyDashboard extends StatefulWidget {
 
 class _SurveyDashboardState extends State<SurveyDashboard> {
   late Future<Map<String, dynamic>?> _surveyFuture;
+  late final FMTCTileProvider _tileProvider;
 
   @override
   void initState() {
     super.initState();
-    // load survey details
+    // Load the survey data
     _surveyFuture = DatabaseHelper().getPciSurveyById(widget.surveyId);
 
-    // set up a local tile cache store named "osmCache"
-    FMTC.instance('osmCache').manage.create();
+    // Configure the tile provider for browse caching
+    _tileProvider = FMTCTileProvider(
+      stores: const { 'osmCache': BrowseStoreStrategy.readUpdateCreate },
+    );
   }
 
   @override
@@ -36,20 +38,20 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
       appBar: AppNavBar(title: 'Survey #${widget.surveyId}'),
       body: FutureBuilder<Map<String, dynamic>?>(
         future: _surveyFuture,
-        builder: (context, snap) {
-          if (snap.connectionState != ConnectionState.done) {
+        builder: (context, snapshot) {
+          if (snapshot.connectionState != ConnectionState.done) {
             return const Center(child: CircularProgressIndicator());
           }
-          if (snap.hasError || snap.data == null) {
+          if (snapshot.hasError || snapshot.data == null) {
             return Center(
               child: Text(
-                snap.hasError ? 'Error: ${snap.error}' : 'Survey not found',
+                snapshot.hasError ? 'Error: \${snapshot.error}' : 'Survey not found',
                 style: const TextStyle(color: AppColors.danger),
               ),
             );
           }
 
-          final data = snap.data!;
+          final data = snapshot.data!;
           final start = LatLng(data['start_lat'], data['start_lon']);
           final hasEnd = data['end_lat'] != null && data['end_lon'] != null;
           final end = hasEnd
@@ -58,28 +60,29 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
 
           return FlutterMap(
             options: MapOptions(
-              center: start,
-              zoom: 15,
+              initialCenter: start,
+              initialZoom: 15,
             ),
             children: [
-              // ─── Cached OSM tiles ───────────────────────
+              // Offline-capable OSM tiles
               TileLayer(
                 urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                subdomains: const ['a', 'b', 'c'],
-                tileProvider: FMTC.instance('osmCache').getTileProvider(),
+                subdomains: const ['a','b','c'],
+                tileProvider: _tileProvider,
+                userAgentPackageName: 'com.example.pci_survey_application',
               ),
 
-              // ─── Real-time user location ────────────────
-              CurrentLocationLayer(),  // defaults are fine
+              // Real-time user location marker
+              CurrentLocationLayer(),
 
-              // ─── Survey start & end markers ────────────
+              // Start and end markers
               MarkerLayer(
                 markers: [
                   Marker(
                     point: start,
-                    width: 36,
-                    height: 36,
-                    builder: (_) => const Icon(
+                    width: 48,
+                    height: 48,
+                    child: const Icon(
                       Icons.flag,
                       color: Colors.green,
                       size: 36,
@@ -88,9 +91,9 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
                   if (end != null)
                     Marker(
                       point: end,
-                      width: 36,
-                      height: 36,
-                      builder: (_) => const Icon(
+                      width: 48,
+                      height: 48,
+                      child: const Icon(
                         Icons.flag_outlined,
                         color: Colors.red,
                         size: 36,
