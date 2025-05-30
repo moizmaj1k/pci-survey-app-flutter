@@ -22,7 +22,7 @@ class AppNavBar extends StatefulWidget implements PreferredSizeWidget {
 }
 
 class _AppNavBarState extends State<AppNavBar> {
-  late StreamSubscription<ConnectivityResult> _sub;
+  late StreamSubscription<List<ConnectivityResult>> _sub;
   bool _isOnline = true;
 
   @override
@@ -31,8 +31,10 @@ class _AppNavBarState extends State<AppNavBar> {
     Connectivity().checkConnectivity().then((status) {
       setState(() => _isOnline = status != ConnectivityResult.none);
     });
-    _sub = Connectivity().onConnectivityChanged.listen((status) {
-      setState(() => _isOnline = status != ConnectivityResult.none);
+    _sub = Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> statuses) {
+      // if any non-none, we're online
+      final online = statuses.any((s) => s != ConnectivityResult.none);
+      setState(() => _isOnline = online);
     });
   }
 

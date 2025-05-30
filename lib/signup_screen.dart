@@ -25,7 +25,7 @@ class _SignupScreenState extends State<SignupScreen> {
   int? _districtId;
   List<Map<String, dynamic>> _districts = [];
   bool _isOnline = true;
-  late StreamSubscription<ConnectivityResult> _connSub;
+  late StreamSubscription<List<ConnectivityResult>> _connSub;
 
   @override
   void initState() {
@@ -35,8 +35,10 @@ class _SignupScreenState extends State<SignupScreen> {
       setState(() => _districts = list);
     });
     // Monitor connectivity
-    _connSub = Connectivity().onConnectivityChanged.listen((status) {
-      setState(() => _isOnline = status != ConnectivityResult.none);
+    _connSub = Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> statuses) {
+      // if any non-none, we're online
+      final online = statuses.any((s) => s != ConnectivityResult.none);
+      setState(() => _isOnline = online);
     });
   }
 

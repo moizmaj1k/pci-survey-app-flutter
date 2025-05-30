@@ -21,15 +21,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final _db = DatabaseHelper();
   bool _isOnline = true;
   bool _locationEnabled = true;
-  late StreamSubscription<ConnectivityResult> _connSub;
+  late StreamSubscription<List<ConnectivityResult>> _connSub;
   late StreamSubscription<ServiceStatus> _locSub;
 
   @override
   void initState() {
     super.initState();
     // monitor connectivity
-    _connSub = Connectivity().onConnectivityChanged.listen((status) {
-      setState(() => _isOnline = status != ConnectivityResult.none);
+    _connSub = Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> statuses) {
+      // if any non-none, we're online
+      final online = statuses.any((s) => s != ConnectivityResult.none);
+      setState(() => _isOnline = online);
     });
 
     // check initial location service state
