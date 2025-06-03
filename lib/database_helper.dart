@@ -145,6 +145,7 @@ class DatabaseHelper {
         latitude REAL,
         longitude REAL,
         pics TEXT,
+        remarks TEXT,
         recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (survey_id) REFERENCES pci_survey(id)
           ON DELETE CASCADE
@@ -351,13 +352,16 @@ class DatabaseHelper {
     );
   }
 
-  /// Fetches all surveys matching the given status (e.g. 'draft', 'complete').
-  Future<List<Map<String, dynamic>>> getSurveysByStatus(String status) async {
+  /// Fetches all surveys matching the given status AND created_by the current user.
+  Future<List<Map<String, dynamic>>> getPciSurveysByStatus(String status) async {
     final db = await database;
+    // Assume getCurrentUserId() returns the logged‐in user’s ID (or null if none).
+    final userId = await getCurrentUserId() ?? 0;
+
     return db.query(
       'pci_survey',
-      where: 'status = ?',
-      whereArgs: [status],
+      where: 'status = ? AND created_by = ?',
+      whereArgs: [status, userId],
       orderBy: 'created_at DESC',
     );
   }
@@ -409,7 +413,8 @@ class DatabaseHelper {
     String? quantityUnit,
     required double latitude,
     required double longitude,
-    String? pics,               // comma-separated paths or JSON array
+    String? pics,           // comma-separated paths or JSON array
+    String? remarks,        // NEW parameter
   }) async {
     final db = await database;
     return db.insert(
@@ -425,11 +430,12 @@ class DatabaseHelper {
         'latitude':      latitude,
         'longitude':     longitude,
         'pics':          pics,
+        'remarks':       remarks,        // pass remarks here
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
-
+    
   // FETCH all distress records for one survey
   Future<List<Map<String, dynamic>>> getDistressBySurvey(int surveyId) async {
     final db = await database;
@@ -453,7 +459,7 @@ class DatabaseHelper {
     return rows.isNotEmpty ? rows.first : null;
   }
 
-  // UPDATE an existing distress record (you can update any subset of columns)
+  // UPDATE an existing distress record
   Future<int> updateDistressPoint({
     required int id,
     String? rd,
@@ -465,6 +471,7 @@ class DatabaseHelper {
     double? latitude,
     double? longitude,
     String? pics,
+    String? remarks,        // NEW parameter
   }) async {
     final db = await database;
     final data = <String, dynamic>{};
@@ -477,6 +484,7 @@ class DatabaseHelper {
     if (latitude != null)      data['latitude'] = latitude;
     if (longitude != null)     data['longitude'] = longitude;
     if (pics != null)          data['pics'] = pics;
+    if (remarks != null)       data['remarks'] = remarks; // include remarks
 
     if (data.isEmpty) return 0; // nothing to update
 
@@ -507,4 +515,21 @@ class DatabaseHelper {
     );
   }
 
+
+  /// Deletes the entire SQLite database file.
+  Future<void> deleteDatabaseFile() async {
+    final dbPath = await getDatabasesPath();
+    final path = join(dbPath, _dbName);
+    await close(); // close any open database connection
+    await deleteDatabase(path);
+    _db = null;
+  }
+
+  /// Closes the database if it's open.
+  Future<void> close() async {
+    if (_db != null) {
+      await _db!.close();
+      _db = null;
+    }
+  }
 }

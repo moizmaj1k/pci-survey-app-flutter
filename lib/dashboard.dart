@@ -918,17 +918,236 @@ class _NewSurveyTabState extends State<NewSurveyTab> {
 
 
 
-
-class ViewTab extends StatelessWidget {
+class ViewTab extends StatefulWidget {
   const ViewTab({Key? key}) : super(key: key);
+
+  @override
+  State<ViewTab> createState() => _ViewTabState();
+}
+
+class _ViewTabState extends State<ViewTab> {
+  // Lists to hold “draft” and “completed” surveys
+  List<Map<String, dynamic>> _incompleteSurveys = [];
+  List<Map<String, dynamic>> _completedSurveys = [];
+
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSurveys();
+  }
+
+  Future<void> _loadSurveys() async {
+    setState(() {
+      _loading = true;
+    });
+
+    try {
+      // Fetch surveys with status = 'draft' (incomplete)
+      final drafts = await DatabaseHelper().getPciSurveysByStatus('draft');
+      // Fetch surveys with status = 'completed'
+      final completed = await DatabaseHelper().getPciSurveysByStatus('completed');
+
+      setState(() {
+        _incompleteSurveys = drafts;
+        _completedSurveys = completed;
+      });
+    } catch (e) {
+      CustomSnackbar.show(
+        context,
+        'Failed to load surveys',
+        type: SnackbarType.error,
+      );
+    } finally {
+      setState(() {
+        _loading = false;
+      });
+    }
+  }
+
+  Widget _buildSurveyCard({
+    required Map<String, dynamic> survey,
+    required String buttonText,
+    required Color buttonColor,
+    required void Function() onTap,
+  }) {
+    final int surveyId = survey['id'] as int;
+    final String roadName = survey['road_name'] as String? ?? 'Unnamed road';
+    // Replace start_rd with created_at
+    final String createdAt = survey['created_at'] as String? ?? '';
+
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        // Reduced padding for a more compact card
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Survey #$surveyId',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: Colors.grey[800],
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Road Name: $roadName',
+              style: const TextStyle(fontSize: 14),
+            ),
+            if (createdAt.isNotEmpty) ...[
+              const SizedBox(height: 2),
+              Text(
+                'Created: $createdAt',
+                style: const TextStyle(fontSize: 14),
+              ),
+            ],
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerRight,
+              child: ElevatedButton(
+                onPressed: onTap,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: buttonColor,
+                  foregroundColor: buttonColor.computeLuminance() > 0.5
+                      ? Colors.black
+                      : Colors.white,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  minimumSize: const Size(64, 32),
+                ),
+                child: Text(
+                  buttonText,
+                  style: const TextStyle(fontSize: 14),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child:
-          Text('View collected data', style: Theme.of(context).textTheme.bodyLarge),
+    if (_loading) {
+      // Simple loading indicator while fetching both lists
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadSurveys,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Padding(
+          padding: const EdgeInsets.only(top: 16.0, bottom: 32.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ─── Section 1: Incomplete Surveys ───────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  'Incomplete Surveys',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (_incompleteSurveys.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    'You have no incomplete surveys.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                )
+              else
+                Column(
+                  children: _incompleteSurveys.map((survey) {
+                    return _buildSurveyCard(
+                      survey: survey,
+                      buttonText: 'Continue',
+                      buttonColor: AppColors.primary,
+                      onTap: () {
+                        final int surveyId = survey['id'] as int;
+                        Navigator.pushNamed(
+                          context,
+                          SurveyDashboard.routeName,
+                          arguments: surveyId,
+                        );
+                      },
+                    );
+                  }).toList(),
+                ),
+
+              const SizedBox(height: 24),
+
+              // ─── Section 2: Completed Surveys ────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  'Completed Surveys',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (_completedSurveys.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    'You have no completed surveys.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                )
+              else
+                Column(
+                  children: _completedSurveys.map((survey) {
+                    return _buildSurveyCard(
+                      survey: survey,
+                      buttonText: 'View',
+                      buttonColor: AppColors.success,
+                      onTap: () {
+                        final int surveyId = survey['id'] as int;
+                        Navigator.pushNamed(
+                          context,
+                          SurveyDashboard.routeName,
+                          arguments: surveyId,
+                        );
+                      },
+                    );
+                  }).toList(),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
 class UploadDataTab extends StatelessWidget {
   @override
@@ -943,18 +1162,56 @@ class UploadDataTab extends StatelessWidget {
 class SettingsTab extends StatelessWidget {
   final VoidCallback onViewData;
   const SettingsTab({Key? key, required this.onViewData}) : super(key: key);
+
+  Future<void> _deleteAppDatabase(BuildContext context) async {
+    try {
+      await DatabaseHelper().deleteDatabaseFile();
+      CustomSnackbar.show(
+        context,
+        'Database deleted successfully.',
+        type: SnackbarType.success,
+      );
+    } catch (e) {
+      CustomSnackbar.show(
+        context,
+        'Failed to delete database.',
+        type: SnackbarType.error,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: ElevatedButton(
-        onPressed: onViewData,
-        style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.warning,
-            foregroundColor: Colors.black,
-            minimumSize: const Size(200, 50),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
-        child: const Text('View Data'),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ElevatedButton(
+            onPressed: onViewData,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.warning,
+              foregroundColor: Colors.black,
+              minimumSize: const Size(200, 50),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('View Data'),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () => _deleteAppDatabase(context),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: Colors.white,
+              minimumSize: const Size(200, 50),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('Delete Database'),
+          ),
+        ],
       ),
     );
   }

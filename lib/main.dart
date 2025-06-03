@@ -12,6 +12,8 @@ import 'dashboard.dart';
 import 'survey_dashboard.dart';
 import 'theme/theme_provider.dart';
 import 'theme/theme_factory.dart';
+import 'distress_form.dart';
+
 
 Future<void> main() async {
   // Ensure binding and plugin services are ready
@@ -60,6 +62,7 @@ class PCISurveyApp extends StatelessWidget {
           final surveyId = ModalRoute.of(context)!.settings.arguments as int;
           return SurveyDashboard(surveyId: surveyId);
         },
+        DistressForm.routeName: (_) => const DistressForm(),
       },
       onUnknownRoute: (_) => MaterialPageRoute(
         builder: (context) => const LandingPage(),

@@ -15,6 +15,7 @@ import 'package:pci_survey_application/widgets/custom_snackbar.dart'; // <— Ad
 import 'package:pci_survey_application/theme/theme_factory.dart';
 import 'database_helper.dart';
 
+
 class SurveyDashboard extends StatefulWidget {
   static const routeName = '/surveyDashboard';
   final int surveyId;
@@ -34,6 +35,7 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
 
   // Survey data loader
   late Future<Map<String, dynamic>?> _surveyFuture;
+  late Future<List<Map<String, dynamic>>> _distressFuture;
 
   // Track latest coordinates for recentering and distress recording
   LatLng? _currentLocation;
@@ -51,6 +53,7 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
   void initState() {
     super.initState();
     _surveyFuture = DatabaseHelper().getPciSurveyById(widget.surveyId);
+    _distressFuture = DatabaseHelper().getDistressBySurvey(widget.surveyId);
 
     _tileProvider = FMTCTileProvider(
       stores: const {'osmCache': BrowseStoreStrategy.readUpdateCreate},
@@ -458,6 +461,258 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
     }
   }
 
+  Widget _buildFlutterMap(
+  Map<String, dynamic> data,
+  LatLng start,
+  LatLng? end,
+  List<Marker> distressMarkers,
+) {
+  return Stack(
+    children: [
+      FlutterMap(
+        mapController: _mapController,
+        options: MapOptions(
+          initialCenter: start,
+          initialZoom: _defaultZoom,
+        ),
+        children: [
+          // 1) Offline-capable OSM tiles
+          TileLayer(
+            urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+            subdomains: const ['a', 'b', 'c'],
+            tileProvider: _tileProvider,
+            userAgentPackageName: 'com.example.pci_survey_application',
+          ),
+          // 2) Blue location marker with heading (default behavior)
+          const CurrentLocationLayer(),
+          // 3) KML polylines (if any)
+          if (_kmzPolylines.isNotEmpty)
+            PolylineLayer(polylines: _kmzPolylines),
+          // 4) Start, end, and distress markers
+MarkerLayer(
+  markers: [
+    // Start marker without circular border, just an icon with shadow
+    Marker(
+      point: start,
+      width: 48,
+      height: 48,
+      child: const Icon(
+        Icons.flag,
+        color: Colors.green,
+        size: 36,
+        shadows: [
+          Shadow(
+            color: Colors.black54,
+            blurRadius: 4,
+            offset: Offset(0, 3),
+          ),
+        ],
+      ),
+    ),
+
+    if (end != null)
+      // End marker without circular border, just an icon with shadow
+      Marker(
+        point: end,
+        width: 48,
+        height: 48,
+        child: const Icon(
+          Icons.flag,
+          color: Colors.red,
+          size: 36,
+          shadows: [
+            Shadow(
+              color: Colors.black54,
+              blurRadius: 4,
+              offset: Offset(0, 3),
+            ),
+          ],
+        ),
+      ),
+
+    ...distressMarkers,
+  ],
+),
+       
+        ],
+      ),
+
+      // 5) Recenter button (top-right)
+      Positioned(
+        top: 16,
+        right: 16,
+        child: Column(
+          children: [
+            FloatingActionButton(
+              mini: true,
+              backgroundColor: Theme.of(context).colorScheme.surface,
+              heroTag: 'recenterBtn',
+              onPressed: _recenterToCurrentLocation,
+              child: Icon(
+                Icons.my_location,
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: 12),
+            // 6) “Upload KMZ” button (just below recenter)
+            FloatingActionButton(
+              mini: true,
+              backgroundColor: AppColors.primary,
+              heroTag: 'uploadKmzBtn',
+              onPressed: _pickAndPlotKmz,
+              child: const Icon(
+                Icons.upload_file,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+
+      // 7) Dropdown for Edit Road Details & Complete Survey (top-left)
+      Positioned(
+        top: 16,
+        left: 16,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (!_showDropdown)
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 4,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  icon: const Icon(Icons.arrow_drop_down, size: 32),
+                  color: Theme.of(context).colorScheme.onSurface,
+                  onPressed: () {
+                    setState(() {
+                      _showDropdown = true;
+                    });
+                  },
+                ),
+              ),
+            if (_showDropdown) ...[
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color.fromARGB(255, 195, 146, 0),
+                  minimumSize: const Size(160, 40),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                onPressed: () {
+                  setState(() => _showDropdown = false);
+                  _showEditRoadDialog(data);
+                },
+                child: const Text(
+                  'Edit Road Details',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.danger,
+                  minimumSize: const Size(160, 40),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                onPressed: () {
+                  setState(() => _showDropdown = false);
+                  Navigator.pushNamed(
+                    context,
+                    '/completeSurvey',
+                    arguments: widget.surveyId,
+                  );
+                },
+                child: const Text(
+                  'Complete Survey',
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 4,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  icon: const Icon(Icons.arrow_drop_up, size: 32),
+                  color: Theme.of(context).colorScheme.onSurface,
+                  onPressed: () {
+                    setState(() {
+                      _showDropdown = false;
+                    });
+                  },
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+
+      // 8) Record Distress Point button (bottom-right)
+      Positioned(
+        bottom: 16,
+        right: 16,
+        child: FloatingActionButton(
+          backgroundColor: AppColors.success,
+          heroTag: 'recordDistressBtn',
+          onPressed: () async {
+            await _updateCurrentLocation();
+            if (_currentLocation != null) {
+              // “await” the push, then refresh _distressFuture when we come back
+              await Navigator.pushNamed(
+                context,
+                '/recordDistress',
+                arguments: {
+                  'surveyId': widget.surveyId,
+                  'lat': _currentLocation!.latitude,
+                  'lon': _currentLocation!.longitude,
+                },
+              );
+              setState(() {
+                _distressFuture =
+                  DatabaseHelper().getDistressBySurvey(widget.surveyId);
+              });
+            } else {
+              CustomSnackbar.show(
+                context,
+                'Current location not available yet',
+                type: SnackbarType.info,
+              );
+            }
+          },
+          child: const Icon(Icons.add),
+        ),
+      ),
+    ],
+  );
+}
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -482,239 +737,128 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
           final hasEnd = data['end_lat'] != null && data['end_lon'] != null;
           final end = hasEnd ? LatLng(data['end_lat'], data['end_lon']) : null;
 
-          return Stack(
-            children: [
-              FlutterMap(
-                mapController: _mapController,
-                options: MapOptions(
-                  initialCenter: start,
-                  initialZoom: _defaultZoom,
-                ),
-                children: [
-                  // 1) Offline-capable OSM tiles
-                  TileLayer(
-                    urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    subdomains: const ['a', 'b', 'c'],
-                    tileProvider: _tileProvider,
-                    userAgentPackageName: 'com.example.pci_survey_application',
-                  ),
-                  // TileLayer(
-                  //   urlTemplate: 'https://stamen-tiles-{s}.a.ssl.fastly.net/toner-lite/{z}/{x}/{y}.png',
-                  //   subdomains: const ['a','b','c','d'],
-                  //   userAgentPackageName: 'com.example.pci_survey_application',
-                  //   tileProvider: _tileProvider,
-                  // ),
-
-                  // 2) Blue location marker with heading (default behavior)
-                  const CurrentLocationLayer(),
-
-                  // 3) KML polylines (if any)
-                  if (_kmzPolylines.isNotEmpty)
-                    PolylineLayer(
-                      polylines: _kmzPolylines,
-                    ),
-
-                  // 4) Start and end markers
-                  MarkerLayer(
-                    markers: [
-                      Marker(
-                        point: start,
-                        width: 48,
-                        height: 48,
-                        child: const Icon(
-                          Icons.flag,
-                          color: Colors.green,
-                          size: 36,
-                        ),
-                      ),
-                      if (end != null)
-                        Marker(
-                          point: end,
-                          width: 48,
-                          height: 48,
-                          child: const Icon(
-                            Icons.flag_outlined,
-                            color: Colors.red,
-                            size: 36,
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-
-              // 5) Recenter button (top-right)
-              Positioned(
-                top: 16,
-                right: 16,
-                child: Column(
+          // Wrap the map + overlays in a FutureBuilder for distress points
+          return FutureBuilder<List<Map<String, dynamic>>>(
+            future: _distressFuture,
+            builder: (context, distressSnap) {
+              // While distress points are loading, show the map without them + a spinner
+              if (distressSnap.connectionState != ConnectionState.done) {
+                return Stack(
                   children: [
-                    FloatingActionButton(
-                      mini: true,
-                      backgroundColor: Colors.white,
-                      heroTag: 'recenterBtn',
-                      onPressed: _recenterToCurrentLocation,
-                      child: const Icon(
-                        Icons.my_location,
-                        color: Colors.black54,
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // 6) “Upload KMZ” button (just below recenter)
-                    FloatingActionButton(
-                      mini: true,
-                      backgroundColor: AppColors.primary,
-                      heroTag: 'uploadKmzBtn',
-                      onPressed: _pickAndPlotKmz,
-                      child: const Icon(
-                        Icons.upload_file,
-                        color: Colors.white,
-                      ),
-                    ),
+                    _buildFlutterMap(data, start, end, const []),
+                    const Center(child: CircularProgressIndicator()),
                   ],
-                ),
-              ),
+                );
+              }
 
-              // 7) Dropdown for Edit Road Details & Complete Survey (top-left)
-              Positioned(
-                top: 16,
-                left: 16,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (!_showDropdown)
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: AppColors.primary,
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Colors.black26,
-                              blurRadius: 4,
-                              offset: Offset(0, 2),
+              // Once distress rows arrive, convert them into red markers
+              final distressRows = distressSnap.data ?? [];
+              final distressMarkers = distressRows.map((row) {
+                final lat = row['latitude'] as double;
+                final lon = row['longitude'] as double;
+                final id = row['id'] as int;
+                final type = row['type'] as String? ?? '—';
+                final distressType = row['distress_type'] as String? ?? '—';
+                final recordedAt = row['recorded_at'] as String? ?? '—';
+
+                return Marker(
+                  point: LatLng(lat, lon),
+                  width: 36,
+                  height: 36,
+                  child: GestureDetector(
+                    onTap: () {
+                      showDialog(
+                        context: context,
+                        builder: (ctx) {
+                          return AlertDialog(
+                            title: const Text('Distress Details'),
+                            content: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Type: $type'),
+                                Text('Distress Type: $distressType'),
+                                Text('Recorded at: $recordedAt'),
+                              ],
                             ),
-                          ],
-                        ),
-                        child: IconButton(
-                          padding: EdgeInsets.zero,
-                          icon: const Icon(Icons.arrow_drop_down, size: 32),
-                          color: Colors.white,
-                          onPressed: () {
-                            setState(() {
-                              _showDropdown = true;
-                            });
-                          },
-                        ),
-                      ),
-                    if (_showDropdown) ...[
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color.fromARGB(255, 195, 146, 0),
-                          minimumSize: const Size(160, 40),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        ),
-                        onPressed: () {
-                          setState(() => _showDropdown = false);
-                          _showEditRoadDialog(data);
-                        },
-                        child: const Text(
-                          'Edit Road Details',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.danger,
-                          minimumSize: const Size(160, 40),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        ),
-                        onPressed: () {
-                          setState(() => _showDropdown = false);
-                          Navigator.pushNamed(
-                            context,
-                            '/completeSurvey',
-                            arguments: widget.surveyId,
+                            actions: [
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.warning,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                onPressed: () {
+                                  Navigator.of(ctx).pop();
+                                  // Navigate to your edit screen (pass `id` as argument)
+                                  Navigator.pushNamed(
+                                    context,
+                                    '/editDistress',
+                                    arguments: id,
+                                  ).then((_) {
+                                    // Refresh distress markers after returning from edit
+                                    setState(() {
+                                      _distressFuture = DatabaseHelper()
+                                          .getDistressBySurvey(widget.surveyId);
+                                    });
+                                  });
+                                },
+                                child: const Text('Edit', style: TextStyle(color: Colors.black),),
+                              ),
+                              const SizedBox(width: 8),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.danger,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                onPressed: () async {
+                                  await DatabaseHelper().deleteDistressPoint(id);
+                                  Navigator.of(ctx).pop();
+                                  setState(() {
+                                    _distressFuture = DatabaseHelper()
+                                        .getDistressBySurvey(widget.surveyId);
+                                  });
+                                  CustomSnackbar.show(
+                                    context,
+                                    'Distress deleted.',
+                                    type: SnackbarType.success,
+                                  );
+                                },
+                                child: const Text('Delete', style: TextStyle(color: Colors.white),),
+                              ),
+                            ],
                           );
                         },
-                        child: const Text(
-                          'Complete Survey',
-                          style: TextStyle(color: Colors.white),
+                      );
+                    },
+                    child: const Icon(
+                      Icons.warning,
+                      color: Colors.purpleAccent,
+                      size: 28,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black54,
+                          blurRadius: 4,
+                          offset: Offset(0, 3),
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: AppColors.primary,
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Colors.black26,
-                              blurRadius: 4,
-                              offset: Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: IconButton(
-                          padding: EdgeInsets.zero,
-                          icon: const Icon(Icons.arrow_drop_up, size: 32),
-                          color: Colors.white,
-                          onPressed: () {
-                            setState(() {
-                              _showDropdown = false;
-                            });
-                          },
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
+                      ],
+                    ),
+                  ),
+                );
+              }).toList();
 
-              // 8) Record Distress Point button (bottom-right)
-              Positioned(
-                bottom: 16,
-                right: 16,
-                child: FloatingActionButton(
-                  backgroundColor: AppColors.success,
-                  heroTag: 'recordDistressBtn',
-                  onPressed: () async {
-                    await _updateCurrentLocation();
-                    if (_currentLocation != null) {
-                      Navigator.pushNamed(
-                        context,
-                        '/recordDistress',
-                        arguments: {
-                          'surveyId': widget.surveyId,
-                          'lat': _currentLocation!.latitude,
-                          'lon': _currentLocation!.longitude,
-                        },
-                      );
-                    } else {
-                      CustomSnackbar.show(
-                        context,
-                        'Current location not available yet',
-                        type: SnackbarType.info,
-                      );
-                    }
-                  },
-                  child: const Icon(Icons.add),
-                ),
-              ),
-            ],
+
+              // Render the map with distress markers included
+              return _buildFlutterMap(data, start, end, distressMarkers);
+            },
           );
         },
       ),
     );
   }
+
+
 }
