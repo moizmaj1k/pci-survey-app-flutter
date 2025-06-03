@@ -380,6 +380,20 @@ class DatabaseHelper {
     return db.query('pci_survey', orderBy: 'created_at DESC');
   }
 
+  /// Returns the number of rows affected.
+  Future<int> updateSurveyRoadDetails(int surveyId, String newName, int newDistrict) async {
+    final db = await database; // however you obtain your `Database` instance
+    // Suppose your table is called "pci_survey" and columns are "road_name" & "district".
+    return await db.update(
+      'pci_survey',
+      {
+        'road_name': newName,
+        'district_id': newDistrict,
+      },
+      where: 'id = ?',
+      whereArgs: [surveyId],
+    );
+  }
 
 
   // DISTRESS POINT METHODS

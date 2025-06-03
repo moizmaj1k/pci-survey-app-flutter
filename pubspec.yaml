@@ -87,9 +87,15 @@ dependencies:
   isar:              4.0.0-dev.14
   isar_flutter_libs: 4.0.0-dev.14
 
+  # ─── FILES ───────────────────────────────────────────
+  file_picker: ^10.1.9
+  archive: ^3.3.2
+  xml: ^6.1.0
+
 
 dependency_overrides:
   geolocator_android: 5.0.1+1 # 4.6.1
+  win32: ^5.13.0
 
 dev_dependencies:
   flutter_test:
