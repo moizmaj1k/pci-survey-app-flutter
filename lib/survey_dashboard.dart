@@ -9,6 +9,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:archive/archive_io.dart';
+import 'package:pci_survey_application/distress_form.dart';
 import 'package:xml/xml.dart';
 import 'package:pci_survey_application/widgets/app_nav_bar.dart';
 import 'package:pci_survey_application/widgets/custom_snackbar.dart'; // <— Added import
@@ -59,6 +60,141 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
       stores: const {'osmCache': BrowseStoreStrategy.readUpdateCreate},
     );
   }
+
+  Future<void> _showDistressListSheet() async {
+    final rawRows = await DatabaseHelper().getDistressBySurvey(widget.surveyId);
+
+    // Make a mutable copy:
+    final distressRows = List<Map<String, dynamic>>.from(rawRows);
+
+    distressRows.sort((a, b) {
+      final tsa = DateTime.tryParse(a['recorded_at'] as String? ?? '') 
+                  ?? DateTime.fromMillisecondsSinceEpoch(0);
+      final tsb = DateTime.tryParse(b['recorded_at'] as String? ?? '') 
+                  ?? DateTime.fromMillisecondsSinceEpoch(0);
+      return tsb.compareTo(tsa);
+    });
+
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          expand: false,
+          builder: (ctx, scrollCtr) {
+            return Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context).canvasColor,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(16),
+                ),
+              ),
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12.0),
+                    child: Container(
+                      width: 50,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[400],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const Text(
+                    'All Distress Points',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: ListView.builder(
+                      controller: scrollCtr,
+                      itemCount: distressRows.length,
+                      itemBuilder: (ctx, idx) {
+                        final row = distressRows[idx];
+                        final id = row['id'] as int;
+                        final type = row['type'] as String? ?? '—';
+                        final distressType = row['distress_type'] as String? ?? '—';
+                        final recordedAt = row['recorded_at'] as String? ?? '—';
+
+                        return ListTile(
+                          title: Text('$type • $distressType'),
+                          subtitle: Text(
+                            DateTime.tryParse(recordedAt) != null
+                                ? '${DateTime.parse(recordedAt).toLocal()}'
+                                : recordedAt,
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Edit icon
+                              IconButton(
+                                icon: const Icon(Icons.edit, color: Colors.orange),
+                                onPressed: () async {
+                                  Navigator.of(ctx).pop(); // close sheet
+                                  // Load full row, then push DistressForm in edit mode
+                                  final fullRow = await DatabaseHelper()
+                                      .getDistressPointById(id);
+                                  if (fullRow != null) {
+                                    await Navigator.pushNamed(
+                                      context,
+                                      DistressForm.routeName,
+                                      arguments: {
+                                        'existingDistressData': fullRow,
+                                      },
+                                    );
+                                    setState(() {
+                                      _distressFuture = DatabaseHelper()
+                                          .getDistressBySurvey(widget.surveyId);
+                                    });
+                                  } else {
+                                    CustomSnackbar.show(
+                                      context,
+                                      'Distress no longer exists.',
+                                      type: SnackbarType.error,
+                                    );
+                                  }
+                                },
+                              ),
+
+                              // Delete icon
+                              IconButton(
+                                icon: const Icon(Icons.delete, color: Colors.red),
+                                onPressed: () async {
+                                  // Remove from database, then refresh and rebuild
+                                  await DatabaseHelper().deleteDistressPoint(id);
+                                  setState(() {
+                                    _distressFuture = DatabaseHelper()
+                                        .getDistressBySurvey(widget.surveyId);
+                                  });
+                                  CustomSnackbar.show(
+                                    context,
+                                    'Distress #$id deleted.',
+                                    type: SnackbarType.success,
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
 
   Future<void> _updateCurrentLocation() async {
     try {
@@ -686,7 +822,7 @@ MarkerLayer(
               // “await” the push, then refresh _distressFuture when we come back
               await Navigator.pushNamed(
                 context,
-                '/recordDistress',
+                DistressForm.routeName,
                 arguments: {
                   'surveyId': widget.surveyId,
                   'lat': _currentLocation!.latitude,
@@ -708,6 +844,20 @@ MarkerLayer(
           child: const Icon(Icons.add),
         ),
       ),
+
+      // 9) List All Distress Points button (just above “Record Distress”)
+      Positioned(
+        bottom: 80, // 16 px from bottom + 56 px (FAB height) + 8 px gap
+        right: 16,
+        child: FloatingActionButton(
+          backgroundColor: AppColors.primary,
+          heroTag: 'listDistressBtn',
+          mini: true,
+          onPressed: _showDistressListSheet,
+          child: const Icon(Icons.list),
+        ),
+      ),
+
     ],
   );
 }
@@ -771,7 +921,21 @@ MarkerLayer(
                         context: context,
                         builder: (ctx) {
                           return AlertDialog(
-                            title: const Text('Distress Details'),
+                            titlePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            title: Row(
+                              children: [
+                                const Expanded(
+                                  child: Text(
+                                    'Distress Details',
+                                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.close),
+                                  onPressed: () => Navigator.of(ctx).pop(),
+                                ),
+                              ],
+                            ),
                             content: Column(
                               mainAxisSize: MainAxisSize.min,
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -781,6 +945,7 @@ MarkerLayer(
                                 Text('Recorded at: $recordedAt'),
                               ],
                             ),
+                            actionsPadding: const EdgeInsets.only(right: 16, bottom: 16),
                             actions: [
                               ElevatedButton(
                                 style: ElevatedButton.styleFrom(
@@ -791,20 +956,45 @@ MarkerLayer(
                                 ),
                                 onPressed: () {
                                   Navigator.of(ctx).pop();
-                                  // Navigate to your edit screen (pass `id` as argument)
-                                  Navigator.pushNamed(
-                                    context,
-                                    '/editDistress',
-                                    arguments: id,
-                                  ).then((_) {
-                                    // Refresh distress markers after returning from edit
-                                    setState(() {
-                                      _distressFuture = DatabaseHelper()
-                                          .getDistressBySurvey(widget.surveyId);
+                                  // 1) First load the complete distress‐row from the database:
+                                  DatabaseHelper()
+                                    .getDistressPointById(id)
+                                    .then((row) {
+                                      if (row != null) {
+                                        // 2) Pass the entire Map<String,dynamic> as `existingDistressData`
+                                        Navigator.pushNamed(
+                                          context,
+                                          DistressForm.routeName,
+                                          arguments: {
+                                            'existingDistressData': row,
+                                          },
+                                        ).then((_) {
+                                          // 3) Refresh your markers or list after coming back:
+                                          setState(() {
+                                            _distressFuture = DatabaseHelper().getDistressBySurvey(widget.surveyId);
+                                          });
+                                        });
+                                      } else {
+                                        // In case the row no longer exists:
+                                        CustomSnackbar.show(
+                                          context,
+                                          'This distress point no longer exists.',
+                                          type: SnackbarType.error,
+                                        );
+                                      }
+                                    })
+                                    .catchError((_) {
+                                      CustomSnackbar.show(
+                                        context,
+                                        'Failed to load distress for editing.',
+                                        type: SnackbarType.error,
+                                      );
                                     });
-                                  });
                                 },
-                                child: const Text('Edit', style: TextStyle(color: Colors.black),),
+                                child: const Text(
+                                  'Edit',
+                                  style: TextStyle(color: Colors.black),
+                                ),
                               ),
                               const SizedBox(width: 8),
                               ElevatedButton(
@@ -827,10 +1017,14 @@ MarkerLayer(
                                     type: SnackbarType.success,
                                   );
                                 },
-                                child: const Text('Delete', style: TextStyle(color: Colors.white),),
+                                child: const Text(
+                                  'Delete',
+                                  style: TextStyle(color: Colors.white),
+                                ),
                               ),
                             ],
                           );
+
                         },
                       );
                     },
