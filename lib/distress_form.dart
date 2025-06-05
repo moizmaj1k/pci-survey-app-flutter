@@ -138,6 +138,7 @@ class _DistressFormState extends State<DistressForm> {
   double?      _latitude;
   double?      _longitude;
   String?      _surveyName;
+  bool         _surveyCompleted    = false;
 
   @override
   void initState() {
@@ -147,60 +148,60 @@ class _DistressFormState extends State<DistressForm> {
 
   @override
   void didChangeDependencies() {
-      super.didChangeDependencies();
+    super.didChangeDependencies();
 
-      // ─── Only run this block once ─────────────────────────────────────────
-      if (_initialized) return;
-      _initialized = true;
+    // ─── Only run this block once ─────────────────────────────────────────
+    if (_initialized) return;
+    _initialized = true;
 
-      final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+    final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
 
-      // ─── EDIT MODE ───────────────────────────────────────────────────────────
-      if (args != null && args['existingDistressData'] != null) {
-        final existing = args['existingDistressData'] as Map<String, dynamic>;
+    // Determine if in edit mode:
+    final isEditMode = args != null && args['existingDistressData'] != null;
+    if (isEditMode) {
+      final existing = args!['existingDistressData'] as Map<String, dynamic>;
 
-        // 1) Basic fields:
-        _surveyId          = existing['survey_id'] as int?;
-        _rdController.text = (existing['rd'] as String?) ?? '';
+      // 1) Basic fields:
+      _surveyId          = existing['survey_id'] as int?;
+      _rdController.text = (existing['rd'] as String?) ?? '';
 
-        final existingType = (existing['type'] as String?) ?? 'Flexible';
-        _isSelected = (existingType == 'Rigid') ? [false, true] : [true, false];
+      final existingType = (existing['type'] as String?) ?? 'Flexible';
+      _isSelected = (existingType == 'Rigid') ? [false, true] : [true, false];
 
-        _selectedDistressType     = existing['distress_type'] as String?;
-        _selectedSeverity         = existing['severity'] as String?;
-        final qtyVal              = existing['quantity'] as num?;
-        if (qtyVal != null) {
-          _quantityController.text = qtyVal.toString();
-        }
-        _quantityUnitController.text = (existing['quantity_unit'] as String?) ?? '';
-        _remarksController.text      = (existing['remarks'] as String?) ?? '';
+      _selectedDistressType     = existing['distress_type'] as String?;
+      _selectedSeverity         = existing['severity'] as String?;
+      final qtyVal              = existing['quantity'] as num?;
+      if (qtyVal != null) {
+        _quantityController.text = qtyVal.toString();
+      }
+      _quantityUnitController.text = (existing['quantity_unit'] as String?) ?? '';
+      _remarksController.text      = (existing['remarks'] as String?) ?? '';
 
-        // 2) Location was already recorded—read from existing row:
-        _latitude  = (existing['latitude']  as num?)?.toDouble();
-        _longitude = (existing['longitude'] as num?)?.toDouble();
-        if (_latitude != null && _longitude != null) {
-          _isLocationRecorded = true;
-        }
-
-        // 3) Existing pics come as JSON (string or List). Decode to List<String>.
-        _imagePaths = _decodePics(existing['pics']);
-
-        // 4) Fetch surveyName so that any newly picked images can be named properly
-        if (_surveyId != null) {
-          DatabaseHelper()
-              .getPciSurveyById(_surveyId!)
-              .then((surveyMap) {
-                if (surveyMap != null && surveyMap['road_name'] != null) {
-                  setState(() {
-                    _surveyName = surveyMap['road_name'] as String;
-                  });
-                }
-              })
-              .catchError((_) {});
-        }
-        return;
+      // 2) Location was already recorded—read from existing row:
+      _latitude  = (existing['latitude']  as num?)?.toDouble();
+      _longitude = (existing['longitude'] as num?)?.toDouble();
+      if (_latitude != null && _longitude != null) {
+        _isLocationRecorded = true;
       }
 
+      // 3) Existing pics come as JSON (string or List). Decode to List<String>.
+      _imagePaths = _decodePics(existing['pics']);
+
+      // 4) Fetch surveyName so that any newly picked images can be named properly
+      if (_surveyId != null) {
+        DatabaseHelper()
+            .getPciSurveyById(_surveyId!)
+            .then((surveyMap) {
+              if (surveyMap != null) {
+                setState(() {
+                  _surveyName = surveyMap['road_name'] as String?;
+                  _surveyCompleted = (surveyMap['status'] as String?) == 'completed';
+                });
+              }
+            })
+            .catchError((_) {});
+      }
+    } else {
       // ─── CREATE MODE ─────────────────────────────────────────────────────────
       if (args == null ||
           args['surveyId'] == null ||
@@ -222,19 +223,21 @@ class _DistressFormState extends State<DistressForm> {
       _longitude         = (args['lon'] as num).toDouble();
       _isLocationRecorded = true;
 
-      // Fetch surveyName so we can name newly picked images
+      // Fetch surveyName and completion status
       if (_surveyId != null) {
         DatabaseHelper()
             .getPciSurveyById(_surveyId!)
             .then((surveyMap) {
-              if (surveyMap != null && surveyMap['road_name'] != null) {
+              if (surveyMap != null) {
                 setState(() {
-                  _surveyName = surveyMap['road_name'] as String;
+                  _surveyName      = surveyMap['road_name'] as String?;
+                  _surveyCompleted = (surveyMap['status'] as String?) == 'completed';
                 });
               }
             })
             .catchError((_) {});
       }
+    }
   }
 
   @override
@@ -274,6 +277,16 @@ class _DistressFormState extends State<DistressForm> {
   bool _isPickingImage = false;
 
   Future<void> _pickImage({required ImageSource source}) async {
+    // Prevent picking if survey is completed (edit mode & completed)
+    if (_surveyCompleted) {
+      CustomSnackbar.show(
+        context,
+        'Cannot add new images to a completed survey.',
+        type: SnackbarType.warning,
+      );
+      return;
+    }
+
     if (_isPickingImage) return;
     _isPickingImage = true;
 
@@ -470,7 +483,6 @@ class _DistressFormState extends State<DistressForm> {
 
       final existingId = (args['existingDistressData'] as Map<String, dynamic>)['id'] as int;
 
-      // Call updateDistressPoint with named parameters exactly as in DatabaseHelper:
       await dbHelper.updateDistressPoint(
         id:            existingId,
         rd:            rd,
@@ -515,21 +527,34 @@ class _DistressFormState extends State<DistressForm> {
       return;
     }
 
-    if (_imagePaths.length < 2) {
-      CustomSnackbar.show(
-        context,
-        'Please capture at least 2 images.',
-        type: SnackbarType.warning,
-      );
-      return;
-    }
-
     final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
 
-    if (args != null && args['existingDistressData'] != null) {
+    if (_surveyCompleted && args != null && args['existingDistressData'] != null) {
+      // Editing a distress for a completed survey: allow updating fields but only if at least 2 images already exist
+      if (_imagePaths.length < 2) {
+        CustomSnackbar.show(
+          context,
+          'Images cannot be changed. Ensure at least 2 existing images remain.',
+          type: SnackbarType.warning,
+        );
+        return;
+      }
       _updateDistress();
     } else {
-      _submitDistress();
+      // Create mode or editing an incomplete survey
+      if (_imagePaths.length < 2) {
+        CustomSnackbar.show(
+          context,
+          'Please capture at least 2 images.',
+          type: SnackbarType.warning,
+        );
+        return;
+      }
+      if (args != null && args['existingDistressData'] != null) {
+        _updateDistress();
+      } else {
+        _submitDistress();
+      }
     }
   }
 
@@ -546,7 +571,6 @@ class _DistressFormState extends State<DistressForm> {
         selectedType == 'Flexible' ? _flexibleTypes : _rigidTypes;
 
     final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
-
     final isEditMode = (args != null && args['existingDistressData'] != null);
 
     return WillPopScope(
@@ -781,7 +805,6 @@ class _DistressFormState extends State<DistressForm> {
                             heroTag: 'fetchLocationBtn',
                             onPressed: isEditMode
                                 ? () {
-                                    // Show custom snackbar in edit mode
                                     CustomSnackbar.show(
                                       context,
                                       'You can only record location for a distress once.',
@@ -948,7 +971,7 @@ class _DistressFormState extends State<DistressForm> {
                                       ),
                                     ),
                                   ),
-                                  if (!isExistingImage)
+                                  if (!isExistingImage && !_surveyCompleted)
                                     Positioned(
                                       top: -4,
                                       right: -4,

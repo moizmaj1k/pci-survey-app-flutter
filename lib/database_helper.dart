@@ -329,23 +329,28 @@ class DatabaseHelper {
     );
   }
 
-  /// Completes an existing survey by writing its “end” fields and computing length.
-  Future<int> completePciSurvey({
+  /// Called when the user “completes” a survey.
+  /// Sets end_rd, road_length, end_lat, end_lon, remarks, AND status='completed'
+  Future<int> updateSurveyCompletion({
     required int surveyId,
     required String endRd,
+    required double roadLength,
     required double endLat,
     required double endLon,
-    required double roadLength,
+    required String remarks,
   }) async {
     final db = await database;
-    return db.update(
+
+    return await db.update(
       'pci_survey',
       {
-        'end_rd':     endRd,
-        'end_lat':    endLat,
-        'end_lon':    endLon,
-        'road_length':roadLength,
-        'status':     'complete',
+        'end_rd'     : endRd,
+        'road_length': roadLength,
+        'end_lat'    : endLat,
+        'end_lon'    : endLon,
+        'remarks'    : remarks,
+        // mark status as “completed”
+        'status'     : 'completed',
       },
       where: 'id = ?',
       whereArgs: [surveyId],
@@ -401,6 +406,25 @@ class DatabaseHelper {
         'district_id': newDistrict,
         'start_rd': newStartRd,
         'remarks': newRemarks,
+      },
+      where: 'id = ?',
+      whereArgs: [surveyId],
+    );
+  }
+
+  /// Updates only the `end_rd` and `road_length` columns for an already‐completed survey.
+  /// Returns the number of rows affected.
+  Future<int> updateSurveyCompletionFields({
+    required int surveyId,
+    required String endRd,
+    required double roadLength,
+  }) async {
+    final db = await database;
+    return await db.update(
+      'pci_survey',
+      {
+        'end_rd': endRd,
+        'road_length': roadLength,
       },
       where: 'id = ?',
       whereArgs: [surveyId],

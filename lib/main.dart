@@ -24,6 +24,8 @@ Future<void> main() async {
 
   // Create the offline tile store before runApp
   await const FMTCStore('osmCache').manage.create();
+  await const FMTCStore('topoCache').manage.create();
+  await const FMTCStore('esriCache').manage.create();
 
   // Setup sqflite on desktop
   if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
