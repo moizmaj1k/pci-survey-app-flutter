@@ -385,18 +385,48 @@ class DatabaseHelper {
   }
 
   /// Returns the number of rows affected.
-  Future<int> updateSurveyRoadDetails(int surveyId, String newName, int newDistrict) async {
-    final db = await database; // however you obtain your `Database` instance
-    // Suppose your table is called "pci_survey" and columns are "road_name" & "district".
+  Future<int> updateSurveyRoadDetails(
+      int surveyId,
+      String newName,
+      int newDistrict,
+      String newStartRd,
+      String newRemarks,
+  ) async {
+    final db = await database; // however you obtain your Database instance
+
     return await db.update(
       'pci_survey',
       {
         'road_name': newName,
         'district_id': newDistrict,
+        'start_rd': newStartRd,
+        'remarks': newRemarks,
       },
       where: 'id = ?',
       whereArgs: [surveyId],
     );
+  }
+
+  /// Deletes all distress points for [surveyId], then deletes the survey row itself.
+  /// Wrapping them in a single transaction ensures consistency.
+  Future<void> deletePciSurvey(int surveyId) async {
+    final db = await database; // however you get your Database instance
+
+    await db.transaction((txn) async {
+      // 1) Delete any distress points tied to this survey
+      await txn.delete(
+        'distress_point',
+        where: 'survey_id = ?',
+        whereArgs: [surveyId],
+      );
+
+      // 2) Delete the survey row
+      await txn.delete(
+        'pci_survey',
+        where: 'id = ?',
+        whereArgs: [surveyId],
+      );
+    });
   }
 
 

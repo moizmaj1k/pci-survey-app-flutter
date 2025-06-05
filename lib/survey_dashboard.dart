@@ -124,7 +124,43 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
                         final recordedAt = row['recorded_at'] as String? ?? '—';
 
                         return ListTile(
-                          title: Text('$type • $distressType'),
+                          title: Row(
+                            children: [
+                              // 1) Colored box for the "type" label
+                              Container(
+                                padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                                decoration: BoxDecoration(
+                                  color: type == 'Rigid'
+                                      ? AppColors.danger           // theme danger background
+                                      : AppColors.warning,         // theme warning background
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  type,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    // If Rigid → white text; if Flexible → black text
+                                    color: type == 'Rigid'
+                                        ? Colors.white
+                                        : Colors.black,
+                                  ),
+                                ),
+                              ),
+
+                              const SizedBox(width: 8),
+
+                              // 2) Then show the distressType text
+                              Expanded(
+                                child: Text(
+                                  distressType,
+                                  style: const TextStyle(fontSize: 16),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+
                           subtitle: Text(
                             DateTime.tryParse(recordedAt) != null
                                 ? '${DateTime.parse(recordedAt).toLocal()}'
@@ -235,7 +271,6 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
     try {
       districts = await DatabaseHelper().getAllDistricts();
     } catch (e) {
-      // If loading districts fails, warn the user and abort
       CustomSnackbar.show(
         context,
         'Failed to load districts',
@@ -246,14 +281,21 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
 
     // 2) Extract current values from surveyData
     final currentName = surveyData['road_name'] as String? ?? '';
-    // surveyData should have “district_id” field
     final currentDistrictId = surveyData['district_id'] as int?;
 
-    // Controllers to hold user input
+    // NEW: Extract existing "start_rd" and "remarks" (assuming these keys exist)
+    final currentStartRd = surveyData['start_rd'] as String? ?? '';
+    final currentRemarks = surveyData['remarks'] as String? ?? '';
+
+    // 3) Controllers to hold user input
     final nameController = TextEditingController(text: currentName);
     int? selectedDistrictId = currentDistrictId;
 
-    // A GlobalKey for form validation
+    // NEW: Controllers for Start Rd and Remarks
+    final startRdController = TextEditingController(text: currentStartRd);
+    final remarksController = TextEditingController(text: currentRemarks);
+
+    // 4) A GlobalKey for form validation
     final formKey = GlobalKey<FormState>();
 
     await showDialog<void>(
@@ -266,7 +308,7 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Road Name field
+                // ─── Road Name field ───
                 TextFormField(
                   controller: nameController,
                   decoration: const InputDecoration(
@@ -282,7 +324,8 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
                   },
                 ),
                 const SizedBox(height: 12),
-                // District dropdown
+
+                // ─── District dropdown ───
                 DropdownButtonFormField<int>(
                   decoration: InputDecoration(
                     labelText: 'District',
@@ -305,11 +348,42 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
                     return null;
                   },
                 ),
+                const SizedBox(height: 12),
+
+                // ─── Start Rd field (NEW) ───
+                TextFormField(
+                  controller: startRdController,
+                  decoration: const InputDecoration(
+                    labelText: 'Start Rd',
+                    hintText: 'Enter start road',
+                    border: OutlineInputBorder(),
+                  ),
+                  // If you want Start Rd to be required, uncomment below:
+                  // validator: (val) {
+                  //   if (val == null || val.trim().isEmpty) {
+                  //     return 'Please enter a start rd';
+                  //   }
+                  //   return null;
+                  // },
+                ),
+                const SizedBox(height: 12),
+
+                // ─── Remarks field (NEW) ───
+                TextFormField(
+                  controller: remarksController,
+                  decoration: const InputDecoration(
+                    labelText: 'Remarks',
+                    hintText: 'Enter any remarks',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 2,
+                  // Remarks is optional, so no validator here
+                ),
               ],
             ),
           ),
           actions: [
-            // Cancel button: warning color, slightly rounded
+            // ─── Cancel button ───
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.warning,
@@ -329,7 +403,7 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
               ),
             ),
 
-            // Save button: danger color, slightly rounded
+            // ─── Save button ───
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.danger,
@@ -339,19 +413,23 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
                 padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
               ),
               onPressed: () async {
-                // 3) Validate
+                // 5) Validate
                 if (!formKey.currentState!.validate()) return;
 
                 final newName = nameController.text.trim();
                 final newDistrictId = selectedDistrictId!;
+                final newStartRd = startRdController.text.trim();
+                final newRemarks = remarksController.text.trim();
 
                 try {
-                  // 4) Call the DB helper to update
+                  // 6) Call the DB helper to update (passing all four values)
                   final rowsAffected = await DatabaseHelper()
                       .updateSurveyRoadDetails(
                         widget.surveyId,
                         newName,
                         newDistrictId,
+                        newStartRd,
+                        newRemarks,
                       );
 
                   if (rowsAffected > 0) {
@@ -360,7 +438,7 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
                       'Road details updated successfully',
                       type: SnackbarType.success,
                     );
-                    // 5) Refresh local surveyFuture so UI updates if you display these fields
+                    // 7) Refresh local surveyFuture so UI updates if you display these fields
                     setState(() {
                       _surveyFuture =
                           DatabaseHelper().getPciSurveyById(widget.surveyId);
@@ -380,7 +458,7 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
                   );
                 }
 
-                // 6) Close the dialog
+                // 8) Close the dialog
                 Navigator.of(ctx).pop();
               },
               child: Text(

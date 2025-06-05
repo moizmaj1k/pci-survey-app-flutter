@@ -918,224 +918,445 @@ class _NewSurveyTabState extends State<NewSurveyTab> {
 
 
 
-class ViewTab extends StatefulWidget {
-  const ViewTab({Key? key}) : super(key: key);
 
-  @override
-  State<ViewTab> createState() => _ViewTabState();
-}
 
-class _ViewTabState extends State<ViewTab> {
-  // Lists to hold “draft” and “completed” surveys
-  List<Map<String, dynamic>> _incompleteSurveys = [];
-  List<Map<String, dynamic>> _completedSurveys = [];
+  class ViewTab extends StatefulWidget {
+    const ViewTab({Key? key}) : super(key: key);
 
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadSurveys();
+    @override
+    State<ViewTab> createState() => _ViewTabState();
   }
 
-  Future<void> _loadSurveys() async {
-    setState(() {
-      _loading = true;
-    });
+  class _ViewTabState extends State<ViewTab> {
+    // Lists to hold “draft” and “completed” surveys
+    List<Map<String, dynamic>> _incompleteSurveys = [];
+    List<Map<String, dynamic>> _completedSurveys = [];
 
-    try {
-      // Fetch surveys with status = 'draft' (incomplete)
-      final drafts = await DatabaseHelper().getPciSurveysByStatus('draft');
-      // Fetch surveys with status = 'completed'
-      final completed = await DatabaseHelper().getPciSurveysByStatus('completed');
+    bool _loading = true;
 
-      setState(() {
-        _incompleteSurveys = drafts;
-        _completedSurveys = completed;
-      });
-    } catch (e) {
-      CustomSnackbar.show(
-        context,
-        'Failed to load surveys',
-        type: SnackbarType.error,
-      );
-    } finally {
-      setState(() {
-        _loading = false;
-      });
+    @override
+    void initState() {
+      super.initState();
+      _loadSurveys();
     }
-  }
 
-  Widget _buildSurveyCard({
-    required Map<String, dynamic> survey,
-    required String buttonText,
-    required Color buttonColor,
-    required void Function() onTap,
-  }) {
-    final int surveyId = survey['id'] as int;
-    final String roadName = survey['road_name'] as String? ?? 'Unnamed road';
-    // Replace start_rd with created_at
-    final String createdAt = survey['created_at'] as String? ?? '';
+    Future<void> _loadSurveys() async {
+      setState(() {
+        _loading = true;
+      });
 
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        // Reduced padding for a more compact card
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Survey #$surveyId',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                color: Colors.grey[800],
+      try {
+        // Fetch surveys with status = 'draft' (incomplete)
+        final drafts = await DatabaseHelper().getPciSurveysByStatus('draft');
+        // Fetch surveys with status = 'completed'
+        final completed = await DatabaseHelper().getPciSurveysByStatus('completed');
+
+        setState(() {
+          _incompleteSurveys = drafts;
+          _completedSurveys = completed;
+        });
+      } catch (e) {
+        CustomSnackbar.show(
+          context,
+          'Failed to load surveys',
+          type: SnackbarType.error,
+        );
+      } finally {
+        setState(() {
+          _loading = false;
+        });
+      }
+    }
+
+    /// Deletes the given survey and its distress points, then refreshes the list.
+    Future<void> _deleteSurvey(int surveyId) async {
+      try {
+        await DatabaseHelper().deletePciSurvey(surveyId);
+        CustomSnackbar.show(
+          context,
+          'Survey #$surveyId deleted.',
+          type: SnackbarType.success,
+        );
+        // Immediately reload so the UI updates
+        await _loadSurveys();
+      } catch (e) {
+        CustomSnackbar.show(
+          context,
+          'Failed to delete survey #$surveyId',
+          type: SnackbarType.error,
+        );
+      }
+    }
+
+    /// Shows a confirmation dialog before actually deleting.
+    void _confirmDelete(int surveyId) {
+      showDialog(
+        context: context,
+        builder: (ctx) {
+          return AlertDialog(
+            title: const Text('Delete Survey?'),
+            content: const Text(
+              'Deleting this survey will also delete all the distress points recorded on it.\n\n'
+              'Are you sure you want to delete?',
+            ),
+            actions: [
+              // "No" button: success background, closes dialog
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.success,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                ),
+                onPressed: () {
+                  Navigator.of(ctx).pop(); // just close the dialog
+                },
+                child: Text(
+                  'No',
+                  style: TextStyle(
+                    color: AppColors.success.computeLuminance() > 0.5
+                        ? Colors.black
+                        : Colors.white,
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Road Name: $roadName',
-              style: const TextStyle(fontSize: 14),
-            ),
-            if (createdAt.isNotEmpty) ...[
-              const SizedBox(height: 2),
-              Text(
-                'Created: $createdAt',
-                style: const TextStyle(fontSize: 14),
+
+              // "Yes" button: danger background, performs delete, then closes dialog
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.danger,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                ),
+                onPressed: () {
+                  Navigator.of(ctx).pop(); // close confirmation dialog
+                  _deleteSurvey(surveyId);
+                },
+                child: Text(
+                  'Yes',
+                  style: TextStyle(
+                    color: AppColors.danger.computeLuminance() > 0.5
+                        ? Colors.black
+                        : Colors.white,
+                  ),
+                ),
               ),
             ],
-            const SizedBox(height: 6),
-            Align(
-              alignment: Alignment.centerRight,
-              child: ElevatedButton(
-                onPressed: onTap,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: buttonColor,
-                  foregroundColor: buttonColor.computeLuminance() > 0.5
-                      ? Colors.black
-                      : Colors.white,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  minimumSize: const Size(64, 32),
-                ),
-                child: Text(
-                  buttonText,
-                  style: const TextStyle(fontSize: 14),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_loading) {
-      // Simple loading indicator while fetching both lists
-      return const Center(child: CircularProgressIndicator());
+          );
+        },
+      );
     }
 
-    return RefreshIndicator(
-      onRefresh: _loadSurveys,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
+    Widget _buildCompletedSurveyCard({
+      required Map<String, dynamic> survey,
+    }) {
+      final int surveyId = survey['id'] as int;
+      final String roadName = survey['road_name'] as String? ?? 'Unnamed road';
+      final String createdAt = survey['created_at'] as String? ?? '';
+
+      return Card(
+        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+        elevation: 3,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: Padding(
-          padding: const EdgeInsets.only(top: 16.0, bottom: 32.0),
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ─── Section 1: Incomplete Surveys ───────────────────
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  'Incomplete Surveys',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
+              // ─── Row with “Survey #…” and “Road Name” ─────────────────────
+              Row(
+                children: [
+                  // 1) Survey # container (surface background, onSurface text)
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'Survey #$surveyId',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: Theme.of(context).colorScheme.onSurface,
                       ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // 2) Road Name container (warning background, black text)
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.warning,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      roadName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              // ─── Created At (if available) ──────────────────────────────
+              if (createdAt.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Created: $createdAt',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 6),
+              // ─── “View” button aligned right ─────────────────────────────
+              Align(
+                alignment: Alignment.centerRight,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pushNamed(
+                      context,
+                      SurveyDashboard.routeName,
+                      arguments: surveyId,
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.success,
+                    foregroundColor: AppColors.success.computeLuminance() > 0.5
+                        ? Colors.black
+                        : Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    minimumSize: const Size(64, 32),
+                  ),
+                  child: const Text(
+                    'View',
+                    style: TextStyle(fontSize: 14),
+                  ),
                 ),
               ),
-              const SizedBox(height: 8),
-              if (_incompleteSurveys.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    'You have no incomplete surveys.',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                )
-              else
-                Column(
-                  children: _incompleteSurveys.map((survey) {
-                    return _buildSurveyCard(
-                      survey: survey,
-                      buttonText: 'Continue',
-                      buttonColor: AppColors.primary,
-                      onTap: () {
-                        final int surveyId = survey['id'] as int;
-                        Navigator.pushNamed(
-                          context,
-                          SurveyDashboard.routeName,
-                          arguments: surveyId,
-                        );
-                      },
-                    );
-                  }).toList(),
-                ),
-
-              const SizedBox(height: 24),
-
-              // ─── Section 2: Completed Surveys ────────────────────
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Text(
-                  'Completed Surveys',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              if (_completedSurveys.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Text(
-                    'You have no completed surveys.',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                )
-              else
-                Column(
-                  children: _completedSurveys.map((survey) {
-                    return _buildSurveyCard(
-                      survey: survey,
-                      buttonText: 'View',
-                      buttonColor: AppColors.success,
-                      onTap: () {
-                        final int surveyId = survey['id'] as int;
-                        Navigator.pushNamed(
-                          context,
-                          SurveyDashboard.routeName,
-                          arguments: surveyId,
-                        );
-                      },
-                    );
-                  }).toList(),
-                ),
             ],
           ),
         ),
-      ),
-    );
+      );
+    }
+
+    Widget _buildIncompleteSurveyCard({
+      required Map<String, dynamic> survey,
+    }) {
+      final int surveyId = survey['id'] as int;
+      final String roadName = survey['road_name'] as String? ?? 'Unnamed road';
+      final String createdAt = survey['created_at'] as String? ?? '';
+
+      return Card(
+        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 16),
+        elevation: 3,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ─── Row with “Survey #…” and “Road Name” ─────────────────────
+              Row(
+                children: [
+                  // 1) Survey # container (surface background, onSurface text)
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'Survey #$surveyId',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // 2) Road Name container (warning background, black text)
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.warning,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      roadName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              // ─── Created At (if available) ──────────────────────────────
+              if (createdAt.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'Created At: $createdAt',
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 6),
+              // ─── Two buttons: “Delete” (opens confirmation) and “Continue” ─
+              Align(
+                alignment: Alignment.centerRight,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 1) Delete button: opens confirmation dialog
+                    ElevatedButton(
+                      onPressed: () => _confirmDelete(surveyId),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.danger,
+                        foregroundColor: AppColors.danger.computeLuminance() > 0.5
+                            ? Colors.black
+                            : Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        minimumSize: const Size(64, 32),
+                      ),
+                      child: const Text(
+                        'Delete',
+                        style: TextStyle(fontSize: 14),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // 2) Continue button, unchanged
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pushNamed(
+                          context,
+                          SurveyDashboard.routeName,
+                          arguments: surveyId,
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: AppColors.primary.computeLuminance() > 0.5
+                            ? Colors.black
+                            : Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        minimumSize: const Size(64, 32),
+                      ),
+                      child: const Text(
+                        'Continue',
+                        style: TextStyle(fontSize: 14),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    @override
+    Widget build(BuildContext context) {
+      if (_loading) {
+        // Simple loading indicator while fetching both lists
+        return const Center(child: CircularProgressIndicator());
+      }
+
+      return RefreshIndicator(
+        onRefresh: _loadSurveys,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Padding(
+            padding: const EdgeInsets.only(top: 16.0, bottom: 32.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ─── Section 1: Incomplete Surveys ─────────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    'Incomplete Surveys',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (_incompleteSurveys.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      'You have no incomplete surveys.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  )
+                else
+                  Column(
+                    children: _incompleteSurveys.map((survey) {
+                      return _buildIncompleteSurveyCard(survey: survey);
+                    }).toList(),
+                  ),
+
+                const SizedBox(height: 24),
+
+                // ─── Section 2: Completed Surveys ──────────────────────────────────────
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    'Completed Surveys',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (_completedSurveys.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      'You have no completed surveys.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  )
+                else
+                  Column(
+                    children: _completedSurveys.map((survey) {
+                      return _buildCompletedSurveyCard(survey: survey);
+                    }).toList(),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
   }
-}
 
 
 
