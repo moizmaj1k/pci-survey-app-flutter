@@ -1,12 +1,10 @@
-// lib/widgets/app_nav_bar.dart
-
-import 'dart:async';
-import 'package:flutter/material.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:internet_connection_checker_plus/internet_connection_checker_plus.dart'; // Import this
 import '../theme/theme_provider.dart';
 
-class AppNavBar extends StatefulWidget implements PreferredSizeWidget {
+class AppNavBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final bool automaticallyImplyLeading;
   const AppNavBar({
@@ -17,57 +15,59 @@ class AppNavBar extends StatefulWidget implements PreferredSizeWidget {
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
-  @override
-  _AppNavBarState createState() => _AppNavBarState();
-}
-
-class _AppNavBarState extends State<AppNavBar> {
-  late StreamSubscription<List<ConnectivityResult>> _sub;
-  bool _isOnline = true;
-
-  @override
-  void initState() {
-    super.initState();
-    Connectivity().checkConnectivity().then((status) {
-      setState(() => _isOnline = status != ConnectivityResult.none);
-    });
-    _sub = Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> statuses) {
-      // if any non-none, we're online
-      final online = statuses.any((s) => s != ConnectivityResult.none);
-      setState(() => _isOnline = online);
-    });
-  }
-
-  @override
-  void dispose() {
-    _sub.cancel();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
     final themeProv = context.watch<ThemeProvider>();
     final isDark = themeProv.isDarkMode;
 
-    return AppBar(
-      title: Text(widget.title),
-      automaticallyImplyLeading: widget.automaticallyImplyLeading,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      foregroundColor: Theme.of(context).colorScheme.onSurface,
-      elevation: 1,
-      actions: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Icon(
-            _isOnline ? Icons.wifi : Icons.wifi_off,
-            color: _isOnline ? Colors.green : Colors.red,
-          ),
-        ),
-        IconButton(
-          icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
-          onPressed: () => themeProv.toggleTheme(!isDark),
-        ),
-      ],
+    return StreamBuilder<List<ConnectivityResult>>(
+      stream: Connectivity().onConnectivityChanged,
+      initialData: const [ConnectivityResult.none],
+      builder: (ctx, connectivitySnapshot) {
+        // Now listen to internet_connection_checker_plus stream
+        return StreamBuilder<InternetStatus>(
+          stream: InternetConnection().onStatusChange,
+          initialData: InternetStatus.connected, // Assume connected initially
+          builder: (ctx, internetSnapshot) {
+            final connectivityStatuses = connectivitySnapshot.data!;
+            final internetStatus = internetSnapshot.data!;
+
+            // Check if there's any network connection (Wi-Fi, mobile, etc.) AND
+            // if there's actual internet access.
+            final isOnline = connectivityStatuses.any((s) => s != ConnectivityResult.none) &&
+                             internetStatus == InternetStatus.connected;
+
+            return AppBar(
+              title: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 18, // Adjust the font size as needed
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              centerTitle: true,
+              automaticallyImplyLeading: automaticallyImplyLeading,
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              foregroundColor: Theme.of(context).colorScheme.onSurface,
+              actions: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  child: Icon(
+                    isOnline ? Icons.wifi : Icons.wifi_off,
+                    color: isOnline ? Colors.green : Colors.red,
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(isDark ? Icons.light_mode : Icons.dark_mode),
+                  onPressed: () => themeProv.toggleTheme(!isDark),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

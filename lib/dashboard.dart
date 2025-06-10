@@ -463,8 +463,6 @@ class _HomeTabState extends State<HomeTab> {
   /// Pops a dialog to let user pick a new district.
   Future<void> _showChangeDistrictDialog() async {
     int? newDistrictId = _districtId;
-
-    // Capture the screen context for the snackbar:
     final screenContext = context;
 
     await showDialog(
@@ -494,27 +492,42 @@ class _HomeTabState extends State<HomeTab> {
           },
         ),
         actions: [
-          TextButton(
+          // Cancel button: warning bg, black text
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.warning,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              minimumSize: const Size(80, 40),
+            ),
             onPressed: () => Navigator.of(dialogContext).pop(),
             child: const Text('Cancel'),
           ),
+
+          // Save button: success bg, white text
           ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.success,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              minimumSize: const Size(80, 40),
+            ),
             onPressed: () async {
               if (newDistrictId == null) return;
 
-              // Close the dialog first
               Navigator.of(dialogContext).pop();
-
-              // Show loading state
               setState(() => _loading = true);
 
-              // Perform the update
               final db = DatabaseHelper();
               final newName = _nameCtrl.text.trim();
               final newPhone = _phoneCtrl.text.trim();
               final newDistrictName = _districts
                   .firstWhere((d) => d['id'] == newDistrictId)['district_name']
-                      as String;
+                  as String;
 
               await db.updateEnumeratorDetails(
                 newName,
@@ -522,16 +535,12 @@ class _HomeTabState extends State<HomeTab> {
                 newDistrictName,
               );
 
-              // Update local state
               setState(() {
                 _districtId = newDistrictId;
                 _loading = false;
               });
-
-              // Tell parent to refetch
               widget.onRegistered();
 
-              // Finally, show success
               CustomSnackbar.show(
                 screenContext,
                 'District updated successfully!',
@@ -866,7 +875,7 @@ class _NewSurveyTabState extends State<NewSurveyTab> {
             ),
 
             const SizedBox(height: 12),
-            
+
             TextFormField(
               controller: _startRdCtrl,
               decoration: InputDecoration(

@@ -79,6 +79,7 @@ dependencies:
   # ─── LOCATION & CONNECTIVITY ─────────────────────────
   geolocator:        ^14.0.1
   connectivity_plus: ^6.1.4
+  internet_connection_checker_plus: ^2.0.0+1
 
   # ─── FIREBASE ────────────────────────────────────────
   image_picker: 1.1.2

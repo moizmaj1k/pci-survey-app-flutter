@@ -264,11 +264,30 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
                                             'Are you sure you want to delete this distress point?',
                                           ),
                                           actions: [
-                                            TextButton(
+                                            // “No” button: green background, white text
+                                            ElevatedButton(
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: AppColors.success,      // or Colors.green
+                                                foregroundColor: Colors.white,
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius: BorderRadius.circular(8),
+                                                ),
+                                                minimumSize: const Size(80, 40),
+                                              ),
                                               onPressed: () => Navigator.of(confirmCtx).pop(),
                                               child: const Text('No'),
                                             ),
-                                            TextButton(
+
+                                            // “Yes” button: red background, white text
+                                            ElevatedButton(
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: AppColors.danger,       // or Colors.red
+                                                foregroundColor: Colors.white,
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius: BorderRadius.circular(8),
+                                                ),
+                                                minimumSize: const Size(80, 40),
+                                              ),
                                               onPressed: () async {
                                                 // 1) Perform deletion
                                                 await DatabaseHelper().deleteDistressPoint(id);
@@ -1269,22 +1288,75 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
             showDialog(
               context: context,
               builder: (ctx) {
-                return SimpleDialog(
-                  title: const Text('Select Base Layer'),
-                  children: [
-                    for (int i = 0; i < _baseLayers.length; i++)
-                      SimpleDialogOption(
-                        onPressed: () {
-                          print('Switching to layer $i: ${_baseLayers[i]['name']}');
-                          setState(() {
-                            _currentBaseLayerIndex = i;
-                          });
-                          Navigator.of(ctx).pop();
-                        },
-                        child: Text(_baseLayers[i]['name']!),
+                // Start of the visually enhanced dialog
+                return Dialog(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16.0), // Adds rounded corners to the dialog
+                  ),
+                  elevation: 10.0, // Adds a subtle shadow for depth
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min, // Makes the dialog content take minimal vertical space
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(24.0, 24.0, 24.0, 8.0),
+                        child: Text(
+                          'Select Base Layer',
+                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: Theme.of(context).colorScheme.primary, // Uses your theme's primary color
+                          ),
+                        ),
                       ),
-                  ],
+                      const Divider(), // A thin line to separate title from options
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxHeight: MediaQuery.of(context).size.height * 0.6, // Limits dialog height for many options
+                          minHeight: 100, // Ensures minimum height
+                        ),
+                        child: ListView.builder(
+                          shrinkWrap: true, // List takes only necessary vertical space
+                          itemCount: _baseLayers.length,
+                          itemBuilder: (context, i) {
+                            final bool isSelected = _currentBaseLayerIndex == i;
+                            return ListTile(
+                              leading: Icon(
+                                Icons.map, // A relevant icon for map layers
+                                color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface,
+                              ),
+                              title: Text(
+                                _baseLayers[i]['name']!,
+                                style: TextStyle(
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface,
+                                ),
+                              ),
+                              trailing: isSelected
+                                  ? Icon(Icons.check_circle, color: Theme.of(context).colorScheme.secondary)
+                                  : null, // Checkmark for the selected item
+                              onTap: () {
+                                print('Switching to layer $i: ${_baseLayers[i]['name']}');
+                                setState(() {
+                                  _currentBaseLayerIndex = i;
+                                });
+                                Navigator.of(ctx).pop(); // Close dialog on selection
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: TextButton(
+                          onPressed: () {
+                            Navigator.of(ctx).pop(); // Close the dialog
+                          },
+                          child: const Text('CANCEL'),
+                        ),
+                      ),
+                    ],
+                  ),
                 );
+                // End of the visually enhanced dialog
               },
             );
           },
