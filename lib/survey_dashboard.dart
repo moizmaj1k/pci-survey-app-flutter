@@ -251,24 +251,54 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
                                 },
                               ),
 
-                              // Delete icon
                               if (!isCompleted)
                                 IconButton(
                                   icon: const Icon(Icons.delete, color: Colors.red),
-                                  onPressed: () async {
-                                    // Remove from database, then refresh and rebuild
-                                    await DatabaseHelper().deleteDistressPoint(id);
-                                    setState(() {
-                                      _distressFuture = DatabaseHelper()
-                                          .getDistressBySurvey(widget.surveyId);
-                                    });
-                                    CustomSnackbar.show(
-                                      context,
-                                      'Distress #$id deleted.',
-                                      type: SnackbarType.success,
+                                  onPressed: () {
+                                    showDialog(
+                                      context: ctx,
+                                      builder: (confirmCtx) {
+                                        return AlertDialog(
+                                          title: const Text('Confirm Delete'),
+                                          content: const Text(
+                                            'Are you sure you want to delete this distress point?',
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () => Navigator.of(confirmCtx).pop(),
+                                              child: const Text('No'),
+                                            ),
+                                            TextButton(
+                                              onPressed: () async {
+                                                // 1) Perform deletion
+                                                await DatabaseHelper().deleteDistressPoint(id);
+
+                                                // 2) Close both dialogs
+                                                Navigator.of(confirmCtx).pop(); // close confirm
+                                                Navigator.of(ctx).pop();        // close sheet
+
+                                                // 3) Refresh the list
+                                                setState(() {
+                                                  _distressFuture =
+                                                      DatabaseHelper().getDistressBySurvey(widget.surveyId);
+                                                });
+
+                                                // 4) Show snackbar on dashboard
+                                                CustomSnackbar.show(
+                                                  context,
+                                                  'Distress #$id deleted.',
+                                                  type: SnackbarType.success,
+                                                );
+                                              },
+                                              child: const Text('Yes'),
+                                            ),
+                                          ],
+                                        );
+                                      },
                                     );
                                   },
                                 ),
+
                             ],
                           ),
                         );
@@ -429,7 +459,7 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
                     controller: startRdController,
                     decoration: const InputDecoration(
                       labelText: 'Start Rd',
-                      hintText: 'Enter start road',
+                      hintText: 'e.g. 0+100',
                       border: OutlineInputBorder(),
                     ),
                     validator: (val) {
@@ -447,7 +477,7 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
                       controller: endRdController,
                       decoration: const InputDecoration(
                         labelText: 'End Rd',
-                        hintText: 'Enter end road',
+                        hintText: 'e.g. 27+300',
                         border: OutlineInputBorder(),
                       ),
                       validator: (val) {
@@ -531,10 +561,35 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
                 // 1) Validate required fields first
                 if (!formKey.currentState!.validate()) return;
 
+                // 2a) Pattern check for Start Rd
+                final rdPattern = RegExp(r'^\d+\+\d{3}$');
+                final newStartRd = startRdController.text.trim();
+                if (!rdPattern.hasMatch(newStartRd)) {
+                  CustomSnackbar.show(
+                    context,
+                    'Start Rd must be like 0+100 (any digits + “+” + exactly 3 digits).',
+                    type: SnackbarType.error,
+                  );
+                  return;
+                }
+
+                // 2b) If completed, also check End Rd
+                if (isCompleted) {
+                  final newEndRd = endRdController.text.trim();
+                  if (!rdPattern.hasMatch(newEndRd)) {
+                    CustomSnackbar.show(
+                      context,
+                      'End Rd must be like 27+300 (any digits + “+” + exactly 3 digits).',
+                      type: SnackbarType.error,
+                    );
+                    return;
+                  }
+                }
+
+
                 // 2) Gather all inputs
                 final newName       = nameController.text.trim();
                 final newDistrictId = selectedDistrictId!;
-                final newStartRd    = startRdController.text.trim();
                 final newRemarks    = remarksController.text.trim();
 
                 try {
@@ -863,6 +918,7 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
                         controller: endRdController,
                         decoration: const InputDecoration(
                           labelText: 'End Rd',
+                          hintText: 'e.g. 27+300',          // ← add this
                           border: OutlineInputBorder(),
                         ),
                         validator: (val) {
@@ -976,10 +1032,10 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
                     ),
                   ),
                   onPressed: () async {
-                    // 1) Validate required fields first
+                    // 1) Form‐level required‐fields check
                     if (!formKey.currentState!.validate()) return;
 
-                    // 2) Ensure we have a fetched end location
+                    // 2) Must have fetched end location
                     if (endLatValue == null || endLonValue == null) {
                       CustomSnackbar.show(
                         context,
@@ -989,18 +1045,26 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
                       return;
                     }
 
-                    // 3) Parse the other fields
-                    final endRdText   = endRdController.text.trim();
+                    // 3) Enforce “digits + ‘+’ + exactly 3 digits”
+                    final endRdText = endRdController.text.trim();
+                    final rdPattern = RegExp(r'^\d+\+\d{3}$');
+                    if (!rdPattern.hasMatch(endRdText)) {
+                      CustomSnackbar.show(
+                        context,
+                        'End Rd must be like 27+300 (any digits + “+” + exactly three digits).',
+                        type: SnackbarType.error,
+                      );
+                      return;
+                    }
+
+                    // 4) Now parse the rest and update the DB…
                     final roadLenVal  = double.parse(roadLenController.text.trim());
                     final latVal      = endLatValue!;
                     final lonVal      = endLonValue!;
                     final remarksText = remarksController.text.trim();
 
                     try {
-                      // 4) Call DB helper so it updates end_rd, road_length,
-                      //    end_lat, end_lon, remarks, and status='completed'
-                      final rowsUpdated =
-                          await DatabaseHelper().updateSurveyCompletion(
+                      final rowsUpdated = await DatabaseHelper().updateSurveyCompletion(
                         surveyId   : widget.surveyId,
                         endRd      : endRdText,
                         roadLength : roadLenVal,
@@ -1015,13 +1079,8 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
                           'Survey marked as completed.',
                           type: SnackbarType.success,
                         );
-                        Navigator.of(ctx2).pop(); // close dialog
-
-                        // 5) Pop back to the Dashboard’s home tab
-                        //    (i.e. route '/dashboard' is assumed to show home by default)
-                        Navigator.of(context).popUntil((route) {
-                          return route.settings.name == '/dashboard';
-                        });
+                        Navigator.of(ctx2).pop();
+                        Navigator.of(context).popAndPushNamed('/dashboard');
                       } else {
                         CustomSnackbar.show(
                           context,
@@ -1037,10 +1096,7 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
                       );
                     }
                   },
-                  child: const Text(
-                    'Complete',
-                    style: TextStyle(color: Colors.white),
-                  ),
+                  child: const Text('Complete', style: TextStyle(color: Colors.white)),
                 ),
               ],
             );

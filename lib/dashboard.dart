@@ -369,25 +369,25 @@ class _HomeTabState extends State<HomeTab> {
                           label: 'Completed',
                           icon: Icons.check_circle,
                           color: AppColors.success,
-                          futureCount: Future.value(0),
+                          futureCount: DatabaseHelper().getSurveyCountByStatus('completed'),
                         ),
                         _AsyncMetricCard(
                           label: 'Uncompleted',
                           icon: Icons.pending,
                           color: AppColors.danger,
-                          futureCount: Future.value(0),
+                          futureCount: DatabaseHelper().getSurveyCountByStatus('draft'),
                         ),
                         _AsyncMetricCard(
                           label: 'Pushed',
                           icon: Icons.cloud_done,
                           color: Theme.of(context).colorScheme.primary,
-                          futureCount: Future.value(0),
+                          futureCount: DatabaseHelper().getPushedSurveyCount(),
                         ),
                         _AsyncMetricCard(
                           label: 'Unpushed',
                           icon: Icons.cloud_upload,
                           color: AppColors.warning,
-                          futureCount: Future.value(0),
+                          futureCount: DatabaseHelper().getUnpushedSurveyCount(),
                         ),
                       ],
                     ),
@@ -557,6 +557,7 @@ class _HomeTabState extends State<HomeTab> {
   }
 }
 
+
 /// A metric card backed by a Future<int>
 class _AsyncMetricCard extends StatelessWidget {
   final String label;
@@ -698,7 +699,22 @@ class _NewSurveyTabState extends State<NewSurveyTab> {
 
 
   Future<void> _onStartPressed() async {
+    // 1) field‐level “not empty” check
     if (!_formKey.currentState!.validate()) return;
+
+    // 2) enforce the pattern: any digits, then ‘+’, then exactly 3 digits
+    final rd = _startRdCtrl.text.trim();
+    final rdPattern = RegExp(r'^\d+\+\d{3}$');
+    if (!rdPattern.hasMatch(rd)) {
+      CustomSnackbar.show(
+        context,
+        'Invalid Start RD. Must be like 0+100 or 27+300 (any number of digits before “+”, exactly 3 after).',
+        type: SnackbarType.error,
+      );
+      return;
+    }
+
+    // 3) location check as before
     if (_startLat == null || _startLon == null) {
       CustomSnackbar.show(
         context,
@@ -708,13 +724,14 @@ class _NewSurveyTabState extends State<NewSurveyTab> {
       return;
     }
 
+    // 4) rest of your insert logic…
     setState(() => _loading = true);
     final userId = await DatabaseHelper().getCurrentUserId() ?? 0;
     try {
       final newId = await DatabaseHelper().insertPciSurvey(
         districtId: _selectedDistrictId!,
         roadName: _roadNameCtrl.text.trim(),
-        startRd: _startRdCtrl.text.trim(),
+        startRd: rd,
         startLat: _startLat!,
         startLon: _startLon!,
         createdBy: userId,
@@ -724,8 +741,6 @@ class _NewSurveyTabState extends State<NewSurveyTab> {
         'Survey #$newId started',
         type: SnackbarType.success,
       );
-
-      // ← only pass the surveyId
       Navigator.pushNamed(
         context,
         SurveyDashboard.routeName,
@@ -851,14 +866,20 @@ class _NewSurveyTabState extends State<NewSurveyTab> {
             ),
 
             const SizedBox(height: 12),
-
+            
             TextFormField(
               controller: _startRdCtrl,
               decoration: InputDecoration(
                 labelText: 'Start RD',
+                hintText: 'e.g. 0+100',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              validator: (v) => (v == null || v.isEmpty) ? 'Enter start RD' : null,
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) {
+                  return 'Enter Start RD';
+                }
+                return null;
+              },
             ),
 
             const SizedBox(height: 12),

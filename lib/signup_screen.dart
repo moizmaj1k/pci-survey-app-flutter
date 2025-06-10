@@ -151,7 +151,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
-                child: const Text('Create Account'),
+                child: const Text('Create Account', style: TextStyle(color: Colors.white)),
               ),
             ],
           ),

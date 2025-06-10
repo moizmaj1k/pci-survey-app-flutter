@@ -389,6 +389,41 @@ class DatabaseHelper {
     return db.query('pci_survey', orderBy: 'created_at DESC');
   }
 
+  /// Count surveys by a single status (e.g. "completed" or "draft")
+  Future<int> getSurveyCountByStatus(String status) async {
+    final db = await database; // however you get your DB instance
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) AS cnt FROM pci_survey WHERE status = ?',
+      [status],
+    );
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  /// Count completed surveys that have been pushed (is_synced = 1)
+  Future<int> getPushedSurveyCount() async {
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) AS cnt '
+      'FROM pci_survey '
+      'WHERE status = ? AND is_synced = ?',
+      ['completed', 1],
+    );
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  /// Count completed surveys that have NOT been pushed (is_synced = 0)
+  Future<int> getUnpushedSurveyCount() async {
+    final db = await database;
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) AS cnt '
+      'FROM pci_survey '
+      'WHERE status = ? AND is_synced = ?',
+      ['completed', 0],
+    );
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+
   /// Returns the number of rows affected.
   Future<int> updateSurveyRoadDetails(
       int surveyId,

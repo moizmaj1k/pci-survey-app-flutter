@@ -410,9 +410,18 @@ class _DistressFormState extends State<DistressForm> {
   // ─── INSERT mode: save new distress to DB ────────────────────────────────
   Future<void> _submitDistress() async {
     final dbHelper = DatabaseHelper();
-    setState(() => _isSubmitting = true);
 
     final rd            = _rdController.text.trim();
+    final rdPattern = RegExp(r'^\d+\+\d{3}$');
+    if (!rdPattern.hasMatch(rd)) {
+      CustomSnackbar.show(
+        context,
+        'RD must be like 0+100 (any number of digits on the left, exactly 3 on the right).',
+        type: SnackbarType.error,
+      );
+      return;
+    }
+    setState(() => _isSubmitting = true);
     final typeField     = selectedType;
     final distressType  = _selectedDistressType;
     final severity      = _selectedSeverity ?? '';
@@ -462,9 +471,19 @@ class _DistressFormState extends State<DistressForm> {
   // ─── UPDATE mode: update existing distress by ID ─────────────────────────
   Future<void> _updateDistress() async {
     final dbHelper = DatabaseHelper();
-    setState(() => _isSubmitting = true);
 
     final rd            = _rdController.text.trim();
+    // 1) pattern‐validate rd
+    final rdPattern = RegExp(r'^\d+\+\d{3}$');
+    if (!rdPattern.hasMatch(rd)) {
+      CustomSnackbar.show(
+        context,
+        'RD must be like 0+100 (any digits + “+” + exactly three digits).',
+        type: SnackbarType.error,
+      );
+      return;
+    }
+    setState(() => _isSubmitting = true);
     final typeField     = selectedType;
     final distressType  = _selectedDistressType;
     final severity      = _selectedSeverity ?? '';
@@ -650,6 +669,7 @@ class _DistressFormState extends State<DistressForm> {
                             controller: _rdController,
                             decoration: const InputDecoration(
                               labelText: 'RD',
+                              hintText: 'e.g. 0+100',
                               border: OutlineInputBorder(),
                             ),
                             validator: (val) {
