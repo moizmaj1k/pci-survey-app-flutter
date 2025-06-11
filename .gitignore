@@ -92,7 +92,7 @@ web/.dart_tool/
 # Firebase config & secrets
 # -----------------------
 # Android Firebase settings
-google-services.json
+android/app/google-services.json
 
 # iOS Firebase settings
 GoogleService-Info.plist
