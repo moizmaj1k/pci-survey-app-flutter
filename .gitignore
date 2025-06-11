@@ -87,6 +87,20 @@ web/.dart_tool/
 **/linux/flutter/generated_plugin_registrant.h
 **/linux/flutter/generated_plugins.cmake
 
+
+# -----------------------
+# Firebase config & secrets
+# -----------------------
+# Android Firebase settings
+google-services.json
+
+# iOS Firebase settings
+GoogleService-Info.plist
+
+# Any dotenv or local environment files
+*.env
+.env.*
+
 # -----------------------
 # IDE / Editor
 # -----------------------
