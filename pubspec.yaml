@@ -85,6 +85,7 @@ dependencies:
   image_picker: 1.1.2
   firebase_core:    ^3.13.1
   firebase_storage: ^12.4.6
+  workmanager: ^0.6.0
 
   # ─── ISAR ───────────────────────────────────────────
   isar:              4.0.0-dev.14
@@ -94,6 +95,8 @@ dependencies:
   file_picker: ^10.1.9
   archive: ^3.3.2
   xml: ^6.1.0
+  excel: 4.0.6
+  share_plus: 11.0.0
 
 
 dependency_overrides:

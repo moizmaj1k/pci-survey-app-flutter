@@ -1,6 +1,12 @@
 // lib/data_viewer.dart
 
+import 'dart:io';
+
+import 'package:excel/excel.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+
 import 'package:pci_survey_application/widgets/app_nav_bar.dart';
 import 'database_helper.dart';
 import 'theme/theme_factory.dart';
@@ -11,7 +17,7 @@ class DataViewer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 5,  // Now 5 tabs: Users, Enumerators, Districts, Surveys, Distress
+      length: 5, // 5 tabs: Users, Enumerators, Districts, Surveys, Distress
       child: Scaffold(
         appBar: const AppNavBar(title: 'Data Viewer'),
         body: Column(
@@ -45,6 +51,11 @@ class DataViewer extends StatelessWidget {
             ),
           ],
         ),
+        floatingActionButton: FloatingActionButton.extended(
+          icon: const Icon(Icons.share),
+          label: const Text('Share Data'),
+          onPressed: () => _exportAndShareXlsx(context),
+        ),
       ),
     );
   }
@@ -57,7 +68,7 @@ class DataViewer extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
         if (snap.hasError) {
-          return Center(child: Text('Error: \${snap.error}'));
+          return Center(child: Text('Error: ${snap.error}'));
         }
         final users = snap.data ?? [];
         if (users.isEmpty) {
@@ -94,7 +105,7 @@ class DataViewer extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
         if (snap.hasError) {
-          return Center(child: Text('Error: \${snap.error}'));
+          return Center(child: Text('Error: ${snap.error}'));
         }
         final enums = snap.data ?? [];
         if (enums.isEmpty) {
@@ -132,7 +143,7 @@ class DataViewer extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
         if (snap.hasError) {
-          return Center(child: Text('Error: \${snap.error}'));
+          return Center(child: Text('Error: ${snap.error}'));
         }
         final districts = snap.data ?? [];
         if (districts.isEmpty) {
@@ -160,7 +171,6 @@ class DataViewer extends StatelessWidget {
     );
   }
 
-  // New: Build a table for PCI Surveys
   Widget _buildSurveysTable(BuildContext context) {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: DatabaseHelper().getAllPciSurveys(),
@@ -169,7 +179,7 @@ class DataViewer extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
         if (snap.hasError) {
-          return Center(child: Text('Error: \${snap.error}'));
+          return Center(child: Text('Error: ${snap.error}'));
         }
         final surveys = snap.data ?? [];
         if (surveys.isEmpty) {
@@ -212,7 +222,6 @@ class DataViewer extends StatelessWidget {
     );
   }
 
-  // New: Build a table for Distress Points
   Widget _buildDistressTable(BuildContext context) {
     return FutureBuilder<List<Map<String, dynamic>>>(
       future: DatabaseHelper().getAllDistressPoints(),
@@ -221,7 +230,7 @@ class DataViewer extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
         if (snap.hasError) {
-          return Center(child: Text('Error: \${snap.error}'));
+          return Center(child: Text('Error: ${snap.error}'));
         }
         final points = snap.data ?? [];
         if (points.isEmpty) {
@@ -256,8 +265,6 @@ class DataViewer extends StatelessWidget {
   }
 
   /// Helper to build a horizontally‐scrollable table.
-  /// - [dataRows] is a List of rows, where each row is a List of cell‐values.
-  /// - [iconColumns] is a Set of column‐indexes that should render an Icon + color.
   Widget _buildTable(
     BuildContext context,
     List<String> headers,
@@ -276,23 +283,21 @@ class DataViewer extends StatelessWidget {
               // Header row
               TableRow(
                 decoration: BoxDecoration(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .primary
-                      .withOpacity(0.1),
+                  color:
+                      Theme.of(context).colorScheme.primary.withOpacity(0.1),
                 ),
-                children: headers.map((h) {
-                  return Padding(
-                    padding: const EdgeInsets.all(8),
-                    child: Text(
-                      h,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                  );
-                }).toList(),
+                children: headers
+                    .map((h) => Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Text(
+                            h,
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                        ))
+                    .toList(),
               ),
               // Data rows
               for (var row in dataRows)
@@ -320,6 +325,142 @@ class DataViewer extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+Future<void> _exportAndShareXlsx(BuildContext context) async {
+  try {
+    // 1) Fetch all your data
+    final users       = await DatabaseHelper().getAllUsers();
+    final enums       = await DatabaseHelper().getAllEnumerators();
+    final districts   = await DatabaseHelper().getAllDistricts();
+    final surveys     = await DatabaseHelper().getAllPciSurveys();
+    final distressPts = await DatabaseHelper().getAllDistressPoints();
+
+    // 2) Create a new Excel workbook and remove the default sheet
+    final excel = Excel.createExcel();
+    final defaultSheet = excel.getDefaultSheet()!;
+    excel.delete(defaultSheet);
+
+    // 3) Helper to add a sheet with header + rows (all as TextCellValue)
+    void addSheet(String name, List<String> header, List<List<dynamic>> rows) {
+      final Sheet sheet = excel[name]; // creates if missing
+      // write header
+      sheet.appendRow(header.map((h) => TextCellValue(h)).toList());
+      // write data rows
+      for (final row in rows) {
+        sheet.appendRow(
+          row.map((c) => TextCellValue(c.toString())).toList()
+        );
+      }
+    }
+
+    addSheet(
+      'Users',
+      ['ID','Username','Email','Designation','Synced'],
+      users.map((u) => [
+        u['id'],
+        u['username'],
+        u['email'],
+        u['designation'],
+        u['is_synced'] == 1 ? 'Yes' : 'No',
+      ]).toList(),
+    );
+
+    addSheet(
+      'Enumerators',
+      ['ID','Name','Phone','District','User ID','Synced'],
+      enums.map((e) => [
+        e['id'],
+        e['name'],
+        e['phone'],
+        e['district'],
+        e['user_id'],
+        e['is_synced'] == 1 ? 'Yes' : 'No',
+      ]).toList(),
+    );
+
+    addSheet(
+      'Districts',
+      ['ID','Name','UIC','Synced'],
+      districts.map((d) => [
+        d['id'],
+        d['district_name'],
+        d['district_uic'],
+        d['is_synced'] == 1 ? 'Yes' : 'No',
+      ]).toList(),
+    );
+
+    addSheet(
+      'Surveys',
+      [
+        'ID','District ID','Road Name','Start RD','End RD','Length',
+        'Start Lat','Start Lon','End Lat','End Lon',
+        'Remarks','Created At','Created By','Status','Synced',
+      ],
+      surveys.map((s) => [
+        s['id'],
+        s['district_id'],
+        s['road_name'],
+        s['start_rd'],
+        s['end_rd'],
+        s['road_length'],
+        s['start_lat'],
+        s['start_lon'],
+        s['end_lat'],
+        s['end_lon'],
+        s['remarks'],
+        s['created_at'],
+        s['created_by'],
+        s['status'],
+        s['is_synced'] == 1 ? 'Yes' : 'No',
+      ]).toList(),
+    );
+
+    addSheet(
+      'Distress',
+      [
+        'ID','Survey ID','RD','Type','Distress Type','Severity',
+        'Quantity','Quantity Unit','Latitude','Longitude',
+        'Pics','Recorded At',
+      ],
+      distressPts.map((p) => [
+        p['id'],
+        p['survey_id'],
+        p['rd'],
+        p['type'],
+        p['distress_type'],
+        p['severity'],
+        p['quantity'],
+        p['quantity_unit'],
+        p['latitude'],
+        p['longitude'],
+        p['pics'],
+        p['recorded_at'],
+      ]).toList(),
+    );
+
+    // 4) Save the workbook to bytes
+    final bytes = excel.save(); // Uint8List?
+    if (bytes == null) throw 'Excel encoding failed';
+
+    // 5) Write to a temp file
+    final dir  = await getTemporaryDirectory();
+    final path = '${dir.path}/pci_export_${DateTime.now().millisecondsSinceEpoch}.xlsx';
+    final file = File(path);
+    await file.writeAsBytes(bytes, flush: true);
+
+    // 6) Fire up the native share sheet
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(path)],
+        text: 'PCI Survey data export',
+      ),
+    );
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Export/share failed: $e')),
     );
   }
 }

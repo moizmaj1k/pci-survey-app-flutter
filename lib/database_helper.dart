@@ -124,6 +124,8 @@ class DatabaseHelper {
         created_by INTEGER,
         status TEXT DEFAULT 'draft',
         is_synced INTEGER DEFAULT 0,
+        pics_state TEXT DEFAULT 'pending',
+        data_state TEXT DEFAULT 'pending',
         FOREIGN KEY (created_by) REFERENCES enumerators(id)
           ON DELETE SET NULL ON UPDATE CASCADE,
         FOREIGN KEY (district_id) REFERENCES districts(id)
@@ -146,6 +148,7 @@ class DatabaseHelper {
         longitude REAL,
         pics TEXT,
         remarks TEXT,
+        pics_state TEXT DEFAULT 'pending',
         recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (survey_id) REFERENCES pci_survey(id)
           ON DELETE CASCADE
@@ -603,6 +606,44 @@ class DatabaseHelper {
       whereArgs: [id],
     );
   }
+
+
+  // DATABASE MANAGEMENT METHODS
+  
+  /// Marks a distress point’s upload state (‘pending’, ‘uploading’, ‘done’, ‘error’).
+  Future<int> updateDistressPicsState(int id, String state) async {
+    final db = await database;
+    return db.update(
+      'distress_point',
+      { 'pics_state': state },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// Replaces the `pics` JSON field of a distress point with a new list of URLs.
+  Future<int> updateDistressPicsPaths(int id, String picsJson) async {
+    final db = await database;
+    return db.update(
+      'distress_point',
+      { 'pics': picsJson },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// Marks the survey’s upload‐of‐images state (‘pending’, ‘uploading’, ‘done’, ‘error’).
+  Future<int> updateSurveyPicsState(int id, String state) async {
+    final db = await database;
+    return db.update(
+      'pci_survey',
+      { 'pics_state': state },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+
 
 
   /// Deletes the entire SQLite database file.

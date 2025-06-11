@@ -38,6 +38,9 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
   late final FMTCTileProvider _osmProvider;
   late final FMTCTileProvider _topoProvider;
   late final FMTCTileProvider _esriProvider;
+  late final FMTCTileProvider _cartoPositronProvider;
+  late final FMTCTileProvider _cartoDarkProvider;
+  late final FMTCTileProvider _cyclosmProvider;
   // during testing only:
   // late final TileProvider _tileProvider;
 
@@ -60,6 +63,24 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
       'url'       : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
       'subdomains': '',
       'provider'  : 'esri',
+    },
+    {
+      'name': 'Carto Positron',
+      'url': 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png',
+      'subdomains': 'a,b,c',
+      'provider': 'carto_positron',
+    },
+    {
+      'name': 'Carto Dark Matter',
+      'url': 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png',
+      'subdomains': 'a,b,c',
+      'provider': 'carto_dark',
+    },
+    {
+      'name': 'CyclOSM',
+      'url': 'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
+      'subdomains': 'a,b,c',
+      'provider': 'cyclosm',
     },
   ];
 
@@ -105,6 +126,24 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
 
     _esriProvider = FMTCTileProvider(
       stores: const { 'esriCache':  BrowseStoreStrategy.readUpdateCreate },
+      loadingStrategy: BrowseLoadingStrategy.cacheFirst,
+      httpClient: httpClient,
+    );
+
+    _cartoPositronProvider = FMTCTileProvider(
+      stores: const { 'cartoPositronCache': BrowseStoreStrategy.readUpdateCreate },
+      loadingStrategy: BrowseLoadingStrategy.cacheFirst,
+      httpClient: httpClient,
+    );
+
+    _cartoDarkProvider = FMTCTileProvider(
+      stores: const { 'cartoDarkCache': BrowseStoreStrategy.readUpdateCreate },
+      loadingStrategy: BrowseLoadingStrategy.cacheFirst,
+      httpClient: httpClient,
+    );
+
+    _cyclosmProvider = FMTCTileProvider(
+      stores: const { 'cyclosmCache': BrowseStoreStrategy.readUpdateCreate },
       loadingStrategy: BrowseLoadingStrategy.cacheFirst,
       httpClient: httpClient,
     );
@@ -1137,10 +1176,13 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
   final parts = _baseLayers[_currentBaseLayerIndex]['subdomains']!.split(',');
   final subdomainList = parts.where((s) => s.isNotEmpty).toList();
   final providerToUse = switch (_baseLayers[_currentBaseLayerIndex]['provider']) {
-    'osm'  => _osmProvider,
-    'topo' => _topoProvider,
-    'esri' => _esriProvider,
-    _      => _osmProvider,
+    'osm'              => _osmProvider,
+    'topo'             => _topoProvider,
+    'esri'             => _esriProvider,
+    'carto_positron'   => _cartoPositronProvider,
+    'carto_dark'       => _cartoDarkProvider,
+    'cyclosm'          => _cyclosmProvider,
+    _                  => _esriProvider,
   };
 
   return Stack(
@@ -1301,7 +1343,7 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
                         padding: const EdgeInsets.fromLTRB(24.0, 24.0, 24.0, 8.0),
                         child: Text(
                           'Select Base Layer',
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
                             fontWeight: FontWeight.bold,
                             color: Theme.of(context).colorScheme.primary, // Uses your theme's primary color
                           ),
@@ -1328,6 +1370,7 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
                                 style: TextStyle(
                                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                                   color: isSelected ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface,
+                                  fontSize: 12,
                                 ),
                               ),
                               trailing: isSelected

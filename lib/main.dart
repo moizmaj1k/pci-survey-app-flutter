@@ -13,33 +13,65 @@ import 'survey_dashboard.dart';
 import 'theme/theme_provider.dart';
 import 'theme/theme_factory.dart';
 import 'distress_form.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:workmanager/workmanager.dart';
+import 'services/uploader.dart';
+
+/// This is the entry point for background workmanager tasks.
+void callbackDispatcher() {
+  Workmanager().executeTask((taskName, inputData) async {
+    // background: no context, runs silently
+    await Uploader().uploadAllPending();
+    return Future.value(true);
+  });
+}
 
 
 Future<void> main() async {
-  // Ensure binding and plugin services are ready
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize FMTC backend (ObjectBox) for offline cache
-  await FMTCObjectBoxBackend().initialise();
+  // 1️⃣ Initialize Firebase
+  await Firebase.initializeApp();
 
-  // Create the offline tile store before runApp
+  // 2️⃣ Hook up the background task dispatcher for image uploads
+  Workmanager().initialize(
+    callbackDispatcher,
+    isInDebugMode: false,
+  );
+  // Run every 15 minutes (Android) / best‐effort on iOS
+  Workmanager().registerPeriodicTask(
+    'uploadImagesTask',   // unique name
+    'uploadImages',       // task name
+    frequency: const Duration(minutes: 15),
+  );
+
+  // 3️⃣ Your existing FMTC setup
+  await FMTCObjectBoxBackend().initialise();
   await const FMTCStore('osmCache').manage.create();
   await const FMTCStore('topoCache').manage.create();
   await const FMTCStore('esriCache').manage.create();
+  await const FMTCStore('cartoPositronCache').manage.create();
+  await const FMTCStore('cartoDarkCache').manage.create();
+  await const FMTCStore('cyclosmCache').manage.create();
 
-  // Setup sqflite on desktop
+  // 4️⃣ sqflite‐ffi for desktop
   if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
   }
 
+  // 5️⃣ Run your app, providing both ThemeProvider and Uploader
   runApp(
-    ChangeNotifierProvider(
-      create: (_) => ThemeProvider(initialMode: ThemeMode.system),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider(initialMode: ThemeMode.system)),
+        ChangeNotifierProvider(create: (_) => Uploader()),          // <-- your upload service
+      ],
       child: const PCISurveyApp(),
     ),
   );
 }
+
 
 class PCISurveyApp extends StatelessWidget {
   const PCISurveyApp({Key? key}) : super(key: key);

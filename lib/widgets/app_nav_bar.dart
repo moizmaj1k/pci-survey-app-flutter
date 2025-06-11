@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:internet_connection_checker_plus/internet_connection_checker_plus.dart'; // Import this
 import '../theme/theme_provider.dart';
+import 'package:flutter/services.dart';
 
 class AppNavBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
@@ -39,6 +40,20 @@ class AppNavBar extends StatelessWidget implements PreferredSizeWidget {
                              internetStatus == InternetStatus.connected;
 
             return AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              // dynamically switch the status‐bar icon brightness
+              systemOverlayStyle: isDark
+                ? SystemUiOverlayStyle.light.copyWith(
+                    statusBarColor: Colors.transparent,            // Android
+                    statusBarIconBrightness: Brightness.light,     // Android
+                    statusBarBrightness: Brightness.dark,          // iOS (controls the status bar text/icons)
+                  )
+                : SystemUiOverlayStyle.dark.copyWith(
+                    statusBarColor: Colors.transparent,
+                    statusBarIconBrightness: Brightness.dark,
+                    statusBarBrightness: Brightness.light,
+                  ),
               title: Text(
                 title,
                 style: const TextStyle(
@@ -48,8 +63,7 @@ class AppNavBar extends StatelessWidget implements PreferredSizeWidget {
               ),
               centerTitle: true,
               automaticallyImplyLeading: automaticallyImplyLeading,
-              backgroundColor: Colors.transparent,
-              elevation: 0,
+
               foregroundColor: Theme.of(context).colorScheme.onSurface,
               actions: [
                 Padding(
