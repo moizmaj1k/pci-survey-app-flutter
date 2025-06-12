@@ -97,6 +97,7 @@ dependencies:
   xml: ^6.1.0
   excel: 4.0.6
   share_plus: 11.0.0
+  flutter_secure_storage: 9.2.4
 
 
 dependency_overrides:

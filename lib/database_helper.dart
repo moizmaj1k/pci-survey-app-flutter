@@ -609,6 +609,17 @@ class DatabaseHelper {
 
 
   // DATABASE MANAGEMENT METHODS
+
+  /// Fetch all surveys with status='completed' AND is_synced=0
+  Future<List<Map<String, dynamic>>> getUnpushedPciSurveys() async {
+    final db = await database;
+    return db.query(
+      'pci_survey',
+      where: 'status = ? AND is_synced = ?',
+      whereArgs: ['completed', 0],
+      orderBy: 'created_at DESC',
+    );
+  }
   
   /// Marks a distress point’s upload state (‘pending’, ‘uploading’, ‘done’, ‘error’).
   Future<int> updateDistressPicsState(int id, String state) async {
@@ -640,6 +651,17 @@ class DatabaseHelper {
       { 'pics_state': state },
       where: 'id = ?',
       whereArgs: [id],
+    );
+  }
+
+  /// Marks a survey as pushed (is_synced = 1).
+  Future<int> updateSurveySynced(int surveyId) async {
+    final dbClient = await database;
+    return dbClient.update(
+      'pci_survey',
+      {'is_synced': 1},
+      where: 'id = ?',
+      whereArgs: [surveyId],
     );
   }
 

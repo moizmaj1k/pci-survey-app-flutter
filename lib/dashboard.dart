@@ -1,6 +1,8 @@
 // lib/dashboard_screen.dart
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as http;
 import 'package:pci_survey_application/survey_dashboard.dart';
 import 'package:pci_survey_application/widgets/custom_snackbar.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
@@ -980,7 +982,7 @@ class _ViewTabState extends State<ViewTab> {
       // Fetch surveys with status = 'draft' (incomplete)
       final drafts = await DatabaseHelper().getPciSurveysByStatus('draft');
       // Fetch surveys with status = 'completed'
-      final completed = await DatabaseHelper().getPciSurveysByStatus('completed');
+      final completed = await DatabaseHelper().getUnpushedPciSurveys();
 
       setState(() {
         _incompleteSurveys = drafts;
@@ -1402,11 +1404,25 @@ class UploadDataTab extends StatefulWidget {
 
 class _UploadDataTabState extends State<UploadDataTab> {
   late Future<_UploadInfo> _infoFuture;
+  final _storage = const FlutterSecureStorage();
 
   @override
   void initState() {
     super.initState();
     _infoFuture = _loadUploadInfo();
+
+    // once the first frame is up, subscribe to Uploader
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final uploader = context.read<Uploader>();
+      uploader.addListener(() {
+        // when busy goes false, refresh
+        if (!uploader.busy && mounted) {
+          setState(() {
+            _infoFuture = _loadUploadInfo();
+          });
+        }
+      });
+    });
   }
 
   @override
@@ -1568,27 +1584,34 @@ class _UploadDataTabState extends State<UploadDataTab> {
                   ),
                 ),
                 onPressed: busy
-                    ? null
-                    : () async {
-                        final conn =
-                            await Connectivity().checkConnectivity();
-                        if (conn == ConnectivityResult.none) {
-                          CustomSnackbar.show(
-                            context,
-                            'No internet connection.',
-                            type: SnackbarType.warning,
-                          );
-                          return;
-                        }
-                        await uploader.uploadAllPending(context: context);
-                        setState(() {
-                          _infoFuture = _loadUploadInfo();
-                        });
-                      },
+                  ? null
+                  : () async {
+                      final conn = await Connectivity().checkConnectivity();
+                      if (conn == ConnectivityResult.none) {
+                        CustomSnackbar.show(
+                          context,
+                          'No internet connection.',
+                          type: SnackbarType.warning,
+                        );
+                        return;
+                      }
+
+                      await uploader.uploadAllPending();
+                      // now that uploads are done:
+                      if (!mounted) return;
+                      CustomSnackbar.show(
+                        context,
+                        'All pending images have been uploaded.',
+                        type: SnackbarType.success,
+                      );
+                      setState(() {
+                        _infoFuture = _loadUploadInfo();
+                      });
+                    },
               ),
               const SizedBox(height: 32),
 
-              // Per-survey Push buttons
+              // ─── Surveys Ready to Push ────────────────────────
               if (info.readySurveys.isEmpty)
                 Text(
                   'No surveys ready to push.',
@@ -1601,9 +1624,7 @@ class _UploadDataTabState extends State<UploadDataTab> {
                     itemBuilder: (ctx, i) {
                       final s  = info.readySurveys[i];
                       final id = s['id'] as int;
-                      final name = s['road_name'] as String? ??
-                          'Survey #$id';
-
+                      final name = s['road_name'] as String? ?? 'Survey #$id';
                       return Card(
                         margin: const EdgeInsets.symmetric(vertical: 8),
                         shape: RoundedRectangleBorder(
@@ -1611,33 +1632,10 @@ class _UploadDataTabState extends State<UploadDataTab> {
                         ),
                         elevation: 3,
                         child: ListTile(
-                          title: Text(
-                            name,
-                            style:
-                                const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          subtitle:
-                              Text('Survey #$id — images uploaded'),
+                          title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: Text('Survey #$id — images uploaded'),
                           trailing: ElevatedButton(
-                            onPressed: () async {
-                              try {
-                                // await DatabaseHelper().updateRoadSynced(id, 1);
-                                CustomSnackbar.show(
-                                  context,
-                                  'Pushed data for Survey #$id',
-                                  type: SnackbarType.success,
-                                );
-                                setState(() {
-                                  _infoFuture = _loadUploadInfo();
-                                });
-                              } catch (e) {
-                                CustomSnackbar.show(
-                                  context,
-                                  'Push failed for #$id: $e',
-                                  type: SnackbarType.error,
-                                );
-                              }
-                            },
+                            onPressed: () => _pushSurvey(id),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.success,
                               foregroundColor: Colors.white,
@@ -1658,7 +1656,118 @@ class _UploadDataTabState extends State<UploadDataTab> {
       },
     );
   }
+
+  Future<void> _pushSurvey(int surveyId) async {
+    final conn = await Connectivity().checkConnectivity();
+    if (conn == ConnectivityResult.none) {
+      CustomSnackbar.show(
+        context,
+        'No internet connection.',
+        type: SnackbarType.warning,
+      );
+      return;
+    }
+
+    final db    = DatabaseHelper();
+    // TODO : Make Auth Register/Login/Enumerators
+    // final token = await _storage.read(key: 'authToken');
+    const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzgxMDg2NjIwLCJpYXQiOjE3NDk1NTA2MjAsImp0aSI6ImZmN2EzNDBiZTNlMjRhZTVhMjZiYzZiOTQxMWRkZGJiIiwidXNlcl9pZCI6ImVkOGYxNmE5LWZhMTItNGY0MS04Y2M5LWQ5MDRhNGMyMjY1ZSJ9.vUICFUusZDxFZHMdXv3UsLZVYjovMN0I3pPDjpmLhGk';
+    if (token == null) {
+      CustomSnackbar.show(context, 'Auth token missing, please re-login.',
+                         type: SnackbarType.error);
+      return;
+    }
+
+    try {
+      // 1) Load survey row
+      final survey = await db.getPciSurveyById(surveyId);
+      if (survey == null) throw 'Survey not found';
+
+      // 2) Resolve district UIC
+      final allDistricts = await db.getAllDistricts();
+      final d = allDistricts.firstWhere(
+        (d) => d['id'] == survey['district_id'],
+        orElse: () => {'district_uic': ''}
+      );
+      final districtUic = d['district_uic'] as String;
+
+      // 3) Build payload
+      final payload = <String, dynamic>{
+        'district':   districtUic,
+        'road_name':  survey['road_name'] ?? '',
+        'road_length': survey['road_length'] ?? 0.0,
+        'start_rd':   survey['start_rd'] ?? '',
+        'end_rd':     survey['end_rd'] ?? '',
+        'start_lat':  survey['start_lat'] ?? 0.0,
+        'start_lon':  survey['start_lon'] ?? 0.0,
+        'end_lat':    survey['end_lat'] ?? 0.0,
+        'end_lon':    survey['end_lon'] ?? 0.0,
+        'remark':     survey['remarks'] ?? '',
+        'pcis':       <Map<String, dynamic>>[],
+      };
+
+      // 4) Load distress points
+      final distressList = await db.getDistressBySurvey(surveyId);
+      for (var r in distressList) {
+        // decode pics JSON
+        List<String> pics = [];
+        final rawPics = r['pics'];
+        if (rawPics is String && rawPics.isNotEmpty) {
+          final decoded = jsonDecode(rawPics);
+          if (decoded is List) pics = List<String>.from(decoded);
+        } else if (rawPics is List) {
+          pics = List<String>.from(rawPics);
+        }
+
+        payload['pcis'].add({
+          'type':           r['type'] ?? '',
+          'rd':             r['rd'] ?? '',
+          'severity':       r['severity'] ?? '',
+          'distress_type':  r['distress_type'] ?? '',
+          'quantity':       r['quantity'] ?? 0,
+          'quantity_unit':  r['quantity_unit'] ?? '',
+          'latitude':       r['latitude'] ?? 0.0,
+          'longitude':      r['longitude'] ?? 0.0,
+          'remark':         r['remarks'] ?? '',
+          'pics':           pics,
+        });
+      }
+
+      // 5) POST to Django
+      final url = Uri.parse('http://56.228.26.125:8000/survey/');
+      final resp = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(payload),
+      );
+
+      if (resp.statusCode == 200 || resp.statusCode == 201) {
+        // 6) Mark local as synced
+        await db.updateSurveySynced(surveyId);
+        CustomSnackbar.show(
+          context,
+          'Survey #$surveyId pushed successfully!',
+          type: SnackbarType.success,
+        );
+        setState(() {
+          _infoFuture = _loadUploadInfo();
+        });
+      } else {
+        throw 'Server responded ${resp.statusCode}: ${resp.body}';
+      }
+    } catch (e) {
+      CustomSnackbar.show(
+        context,
+        'Push failed: $e',
+        type: SnackbarType.error,
+      );
+    }
+  }
 }
+
 
 // Helper model & loader (below your widget in same file or a separate one)
 class _UploadInfo {
