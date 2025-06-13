@@ -4,12 +4,15 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:pci_survey_application/survey_dashboard.dart';
+import 'package:pci_survey_application/survey_list_screen.dart';
+import 'package:pci_survey_application/theme/theme_provider.dart';
 import 'package:pci_survey_application/widgets/custom_snackbar.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter/material.dart';
 import 'package:pci_survey_application/widgets/app_nav_bar.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'database_helper.dart';
 import 'data_viewer.dart';
 import 'theme/theme_factory.dart'; // for AppColors
@@ -83,11 +86,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
           NewSurveyTab(),
           const ViewTab(),
           UploadDataTab(),
-          SettingsTab(onViewData: () {
-            Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const DataViewer()));
-          }),
+          SettingsTab(
+            onViewData: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DataViewer()),
+              );
+            },
+            onViewSurveys: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => SurveyListScreen()),
+              );
+            },
+          ),
         ];
+
 
         return Scaffold(
           appBar: AppNavBar(
@@ -387,7 +401,7 @@ class _HomeTabState extends State<HomeTab> {
                         _AsyncMetricCard(
                           label: 'Pushed',
                           icon: Icons.cloud_done,
-                          color: Theme.of(context).colorScheme.primary,
+                          color: AppColors.primary,
                           futureCount: DatabaseHelper().getPushedSurveyCount(),
                         ),
                         _AsyncMetricCard(
@@ -427,7 +441,7 @@ class _HomeTabState extends State<HomeTab> {
                             Center(
                               child: Column(
                                 children: [
-                                  const Icon(Icons.map, size: 48, color: AppColors.primary),
+                                  Icon(Icons.map, size: 48, color: Theme.of(context).colorScheme.primary),
                                   const SizedBox(height: 8),
                                   Text(
                                     'Welcome to PCI Survey!',
@@ -810,7 +824,7 @@ class _NewSurveyTabState extends State<NewSurveyTab> {
                 Center(
                   child: Column(
                     children: [
-                      const Icon(Icons.info, size: 48, color: AppColors.primary),
+                      Icon(Icons.info, size: 48, color: Theme.of(context).colorScheme.primary),
                       const SizedBox(height: 8),
                       Text(
                         'Before you begin:',
@@ -908,7 +922,7 @@ class _NewSurveyTabState extends State<NewSurveyTab> {
                 icon: const Icon(Icons.gps_fixed),
                 label: const Text('Get Location'),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
+                  backgroundColor: Theme.of(context).colorScheme.primary,
                   foregroundColor: AppColors.light,
                   padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -1290,7 +1304,7 @@ class _ViewTabState extends State<ViewTab> {
                       );
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
+                      backgroundColor: Theme.of(context).colorScheme.primary,
                       foregroundColor: AppColors.primary.computeLuminance() > 0.5
                           ? Colors.black
                           : Colors.white,
@@ -1463,7 +1477,7 @@ class _UploadDataTabState extends State<UploadDataTab> {
                               '${info.pendingSurveys}',
                               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
-                                color: AppColors.primary,
+                                color: Theme.of(context).colorScheme.primary,
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -1577,7 +1591,7 @@ class _UploadDataTabState extends State<UploadDataTab> {
                 ),
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size.fromHeight(48),
-                  backgroundColor: AppColors.primary,
+                  backgroundColor: Theme.of(context).colorScheme.primary,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -1668,22 +1682,26 @@ class _UploadDataTabState extends State<UploadDataTab> {
       return;
     }
 
-    final db    = DatabaseHelper();
-    // TODO : Make Auth Register/Login/Enumerators
-    // final token = await _storage.read(key: 'authToken');
-    const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzgxMDg2NjIwLCJpYXQiOjE3NDk1NTA2MjAsImp0aSI6ImZmN2EzNDBiZTNlMjRhZTVhMjZiYzZiOTQxMWRkZGJiIiwidXNlcl9pZCI6ImVkOGYxNmE5LWZhMTItNGY0MS04Y2M5LWQ5MDRhNGMyMjY1ZSJ9.vUICFUusZDxFZHMdXv3UsLZVYjovMN0I3pPDjpmLhGk';
+    // 1) grab auth token
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('auth_token');
     if (token == null) {
-      CustomSnackbar.show(context, 'Auth token missing, please re-login.',
-                         type: SnackbarType.error);
+      CustomSnackbar.show(
+        context,
+        'Auth token missing – please log in again.',
+        type: SnackbarType.error,
+      );
       return;
     }
 
+    final db = DatabaseHelper();
+
     try {
-      // 1) Load survey row
+      // 2) Load survey row
       final survey = await db.getPciSurveyById(surveyId);
       if (survey == null) throw 'Survey not found';
 
-      // 2) Resolve district UIC
+      // 3) Resolve district UIC
       final allDistricts = await db.getAllDistricts();
       final d = allDistricts.firstWhere(
         (d) => d['id'] == survey['district_id'],
@@ -1691,7 +1709,7 @@ class _UploadDataTabState extends State<UploadDataTab> {
       );
       final districtUic = d['district_uic'] as String;
 
-      // 3) Build payload
+      // 4) Build payload
       final payload = <String, dynamic>{
         'district':   districtUic,
         'road_name':  survey['road_name'] ?? '',
@@ -1706,10 +1724,9 @@ class _UploadDataTabState extends State<UploadDataTab> {
         'pcis':       <Map<String, dynamic>>[],
       };
 
-      // 4) Load distress points
+      // 5) Load distress points
       final distressList = await db.getDistressBySurvey(surveyId);
       for (var r in distressList) {
-        // decode pics JSON
         List<String> pics = [];
         final rawPics = r['pics'];
         if (rawPics is String && rawPics.isNotEmpty) {
@@ -1733,7 +1750,7 @@ class _UploadDataTabState extends State<UploadDataTab> {
         });
       }
 
-      // 5) POST to Django
+      // 6) POST to Django
       final url = Uri.parse('http://56.228.26.125:8000/survey/');
       final resp = await http.post(
         url,
@@ -1745,7 +1762,7 @@ class _UploadDataTabState extends State<UploadDataTab> {
       );
 
       if (resp.statusCode == 200 || resp.statusCode == 201) {
-        // 6) Mark local as synced
+        // 7) Mark local as synced
         await db.updateSurveySynced(surveyId);
         CustomSnackbar.show(
           context,
@@ -1830,7 +1847,13 @@ Future<_UploadInfo> _loadUploadInfo() async {
 
 class SettingsTab extends StatelessWidget {
   final VoidCallback onViewData;
-  const SettingsTab({Key? key, required this.onViewData}) : super(key: key);
+  final VoidCallback onViewSurveys;
+
+  const SettingsTab({
+    Key? key,
+    required this.onViewData,
+    required this.onViewSurveys,
+  }) : super(key: key);
 
   Future<void> _deleteAppDatabase(BuildContext context) async {
     try {
@@ -1849,39 +1872,158 @@ class SettingsTab extends StatelessWidget {
     }
   }
 
+  void _showColorPicker(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Select Primary Color'),
+        content: Wrap(
+          spacing: 8, runSpacing: 8,
+          children: [
+            _colorSwatch(context, AppColors.primary),
+            _colorSwatch(context, const Color.fromARGB(255, 167, 39, 139)),
+            _colorSwatch(context, const Color.fromARGB(255, 118, 24, 173)),
+            _colorSwatch(context, const Color.fromARGB(255, 22, 138, 128)),
+            _colorSwatch(context, const Color.fromARGB(255, 138, 117, 55)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _colorSwatch(BuildContext context, Color color) {
+    return GestureDetector(
+      onTap: () {
+        // assumes you’ve wired ThemeProvider.setPrimaryColor(...)
+        context.read<ThemeProvider>().setPrimaryColor(color);
+        Navigator.of(context).pop();
+      },
+      child: Container(
+        width: 36, height: 36,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: Colors.black12),
+        ),
+      ),
+    );
+  }
+
+
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ElevatedButton(
-            onPressed: onViewData,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.warning,
-              foregroundColor: Colors.black,
-              minimumSize: const Size(200, 50),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            child: const Text('View Data'),
+    return ListView(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      children: [
+        // Section header
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Text('Data & Storage',
+              style: Theme.of(context).textTheme.titleMedium),
+        ),
+
+        // View Local Data
+        Card(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: ListTile(
+            leading: const Icon(Icons.folder_open, color: AppColors.info),
+            title: const Text('View Local Data'),
+            onTap: onViewData,
           ),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: () => _deleteAppDatabase(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.danger,
-              foregroundColor: Colors.white,
-              minimumSize: const Size(200, 50),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            child: const Text('Delete Database'),
+        ),
+
+        // View Pushed Surveys
+        Card(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: ListTile(
+            leading: const Icon(Icons.list_alt, color: AppColors.primary),
+            title: const Text('View Pushed Surveys'),
+            onTap: onViewSurveys,
           ),
-        ],
-      ),
+        ),
+
+        // Delete database
+        Card(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: ListTile(
+            leading: const Icon(Icons.delete_forever, color: AppColors.danger),
+            title: const Text('Delete Local Database'),
+            // onTap: () => _deleteAppDatabase(context),
+            onTap: () {
+              CustomSnackbar.show(
+                context,
+                'You are not allowed to delete the database.',
+                type: SnackbarType.warning,
+              );
+            },
+          ),
+        ),
+
+        const SizedBox(height: 24),
+
+        // Other Settings Section
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Text('App Settings',
+              style: Theme.of(context).textTheme.titleMedium),
+        ),
+
+        // Example: Toggle Dark Mode
+        Card(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: ListTile(
+            leading: Icon(Icons.palette, color: Theme.of(context).colorScheme.primary),
+            title: const Text('App Primary Color'),
+            subtitle: const Text('Tap to choose'),
+            onTap: () => _showColorPicker(context),
+          ),
+        ),
+
+        // Example: About
+        Card(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: ListTile(
+            leading: const Icon(Icons.info_outline, color: AppColors.info),
+            title: const Text('About'),
+            onTap: () {
+              showAboutDialog(
+                context: context,
+                applicationName: 'PCI Survey App',
+                applicationVersion: '1.0.0',
+                children: [const Text('© 2025 Hamood')],
+              );
+            },
+          ),
+        ),
+
+        // Logout
+        Card(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: ListTile(
+            leading: const Icon(Icons.logout, color: AppColors.danger),
+            title: const Text('Logout'),
+            onTap: () async {
+              // 1) Remove auth token
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.remove('auth_token');
+              // 2) Clear local 'current_user' record
+              await DatabaseHelper().logoutUser();
+              // 3) Feedback
+              CustomSnackbar.show(
+                context,
+                'Logged out successfully.',
+                type: SnackbarType.success,
+              );
+              // 4) Navigate to login, wiping the back stack
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                '/login',
+                (route) => false,
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }

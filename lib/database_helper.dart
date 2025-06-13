@@ -40,7 +40,7 @@ class DatabaseHelper {
       )
     ''');
 
-    // ENUMERATORS
+    // ENUMERATORS 
     await db.execute('''
       CREATE TABLE enumerators(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -203,7 +203,32 @@ class DatabaseHelper {
     return prefs.getInt('currentUserId');
   }
 
+  // Query the logged-in user's details from SQLite
+  Future<Map<String, dynamic>?> getCurrentUser() async {
+    final userId = await getCurrentUserId();
+    print('Fetched userId from SharedPreferences: $userId');
+    if (userId == null) {
+      print('No userId found in SharedPreferences.');
+      return null;
+    }
+
+    final db = await database;
+    final List<Map<String, dynamic>> result = await db.query(
+      'users',
+      where: 'id = ?',
+      whereArgs: [userId],
+    );
+
+    print('Query result for current user: $result');
+    return result.isNotEmpty ? result.first : null;
+  }
   
+
+  // Log out the user by removing the ID from SharedPreferences
+  Future<void> logoutUser() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('currentUserId');
+  }
   
   // DISTRICT METHODS
 
@@ -303,6 +328,17 @@ class DatabaseHelper {
   }
 
 
+  Future<Map<String, dynamic>?> getEnumeratorByUserId(int userId) async {
+    final dbClient = await database;
+    final rows = await dbClient.query(
+      'enumerators',
+      where: 'user_id = ?',
+      whereArgs: [userId],
+      limit: 1,
+    );
+    return rows.isNotEmpty ? rows.first : null;
+  }
+
 
   // PCI SURVEY METHODS
 
@@ -360,6 +396,18 @@ class DatabaseHelper {
     );
   }
 
+  /// Get a single survey by its ID.
+  Future<Map<String, dynamic>?> getPciSurveyById(int id) async {
+    final db = await database;
+    final results = await db.query(
+      'pci_survey',
+      where: 'id = ?',
+      whereArgs: [id],
+      limit: 1,
+    );
+    return results.isNotEmpty ? results.first : null;
+  }
+
   /// Fetches all surveys matching the given status AND created_by the current user.
   Future<List<Map<String, dynamic>>> getPciSurveysByStatus(String status) async {
     final db = await database;
@@ -374,54 +422,50 @@ class DatabaseHelper {
     );
   }
 
-  /// Get a single survey by its ID.
-  Future<Map<String, dynamic>?> getPciSurveyById(int id) async {
-    final db = await database;
-    final results = await db.query(
-      'pci_survey',
-      where: 'id = ?',
-      whereArgs: [id],
-      limit: 1,
-    );
-    return results.isNotEmpty ? results.first : null;
-  }
 
   /// Fetch all surveys, regardless of status.
   Future<List<Map<String, dynamic>>> getAllPciSurveys() async {
     final db = await database;
     return db.query('pci_survey', orderBy: 'created_at DESC');
   }
-
-  /// Count surveys by a single status (e.g. "completed" or "draft")
+  /// Count surveys by a single status (e.g. "completed" or "draft") for the current user.
   Future<int> getSurveyCountByStatus(String status) async {
-    final db = await database; // however you get your DB instance
+    final db = await database;
+    final userId = await getCurrentUserId() ?? 0;
+
     final result = await db.rawQuery(
-      'SELECT COUNT(*) AS cnt FROM pci_survey WHERE status = ?',
-      [status],
+      'SELECT COUNT(*) AS cnt '
+      'FROM pci_survey '
+      'WHERE status = ? AND created_by = ?',
+      [status, userId],
     );
     return Sqflite.firstIntValue(result) ?? 0;
   }
 
-  /// Count completed surveys that have been pushed (is_synced = 1)
+  /// Count completed surveys that have been pushed (is_synced = 1) for the current user.
   Future<int> getPushedSurveyCount() async {
     final db = await database;
+    final userId = await getCurrentUserId() ?? 0;
+
     final result = await db.rawQuery(
       'SELECT COUNT(*) AS cnt '
       'FROM pci_survey '
-      'WHERE status = ? AND is_synced = ?',
-      ['completed', 1],
+      'WHERE status = ? AND is_synced = ? AND created_by = ?',
+      ['completed', 1, userId],
     );
     return Sqflite.firstIntValue(result) ?? 0;
   }
 
-  /// Count completed surveys that have NOT been pushed (is_synced = 0)
+  /// Count completed surveys that have NOT been pushed (is_synced = 0) for the current user.
   Future<int> getUnpushedSurveyCount() async {
     final db = await database;
+    final userId = await getCurrentUserId() ?? 0;
+
     final result = await db.rawQuery(
       'SELECT COUNT(*) AS cnt '
       'FROM pci_survey '
-      'WHERE status = ? AND is_synced = ?',
-      ['completed', 0],
+      'WHERE status = ? AND is_synced = ? AND created_by = ?',
+      ['completed', 0, userId],
     );
     return Sqflite.firstIntValue(result) ?? 0;
   }
@@ -613,14 +657,43 @@ class DatabaseHelper {
   /// Fetch all surveys with status='completed' AND is_synced=0
   Future<List<Map<String, dynamic>>> getUnpushedPciSurveys() async {
     final db = await database;
+    final currentId = await getCurrentUserId();
     return db.query(
       'pci_survey',
-      where: 'status = ? AND is_synced = ?',
-      whereArgs: ['completed', 0],
+      where: 'status = ? AND is_synced = ? AND created_by = ?',
+      whereArgs: ['completed', 0, currentId],
       orderBy: 'created_at DESC',
     );
   }
-  
+
+  /// Fetch all surveys with status='completed', is_synced=1,
+  /// and created_by = the currently logged‐in enumerator’s ID.
+  Future<List<Map<String, dynamic>>> getPushedPciSurveys() async {
+    final db = await database;
+
+    // 1) grab the current user/enumerator ID
+    final currentId = await getCurrentUserId();
+
+    // 2) now include created_by in your query
+    return db.query(
+      'pci_survey',
+      where: 'status = ? AND is_synced = ? AND created_by = ?',
+      whereArgs: ['completed', 1, currentId],
+      orderBy: 'created_at DESC',
+    );
+  }
+
+
+  /// Return how many distress points belong to a given survey.
+  Future<int> getDistressCount(int surveyId) async {
+    final dbClient = await database;
+    final result = await dbClient.rawQuery(
+      'SELECT COUNT(*) as c FROM distress_point WHERE survey_id = ?',
+      [surveyId],
+    );
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+    
   /// Marks a distress point’s upload state (‘pending’, ‘uploading’, ‘done’, ‘error’).
   Future<int> updateDistressPicsState(int id, String state) async {
     final db = await database;

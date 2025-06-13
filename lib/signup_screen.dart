@@ -1,12 +1,15 @@
 // lib/signup_screen.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:pci_survey_application/widgets/custom_snackbar.dart';
 import 'package:provider/provider.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:pci_survey_application/widgets/app_nav_bar.dart';
 import 'database_helper.dart';
 import 'theme/theme_provider.dart';
 import 'theme/theme_factory.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 
 class SignupScreen extends StatefulWidget {
@@ -22,6 +25,7 @@ class _SignupScreenState extends State<SignupScreen> {
   final _designation = TextEditingController();
   final _phone = TextEditingController();
   final _password = TextEditingController();
+  bool _isLoading = false;
   int? _districtId;
   List<Map<String, dynamic>> _districts = [];
   bool _isOnline = true;
@@ -54,35 +58,89 @@ class _SignupScreenState extends State<SignupScreen> {
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate() || _districtId == null) return;
-    final db = DatabaseHelper();
-    final uid = await db.insertUser(
-      username: _username.text.trim(),
-      email: _email.text.trim(),
-      designation: _designation.text.trim(),
-      password: _password.text,
-    );
-    await db.saveCurrentUser(uid);
-    await db.insertEnumerator(
-      name: _username.text.trim(),
-      phone: _phone.text.trim(),
-      districtId: _districtId!,
-      userId: uid,
-    );
-    Navigator.pushReplacementNamed(context, '/dashboard');
-  }
+      if (!_formKey.currentState!.validate() || _districtId == null) return;
 
-  InputDecoration _inputDecoration(String label) {
-    return InputDecoration(
-      labelText: label,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-      ),
-      filled: true,
-      fillColor: Theme.of(context).colorScheme.surface,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-    );
-  }
+      setState(() => _isLoading = true);
+
+      try {
+        // 1) Register API
+        final regBody = {
+          'username': _username.text.trim(),
+          'email': _email.text.trim(),
+          'password': _password.text,
+        };
+        final regResp = await http.post(
+          Uri.parse('http://56.228.26.125:8000/register/'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(regBody),
+        );
+
+        debugPrint('🛠️ Register status=${regResp.statusCode}, body=${regResp.body}');
+
+        if (regResp.statusCode < 200 || regResp.statusCode >= 300) {
+          // show raw body so you know what actually came back
+          throw Exception('Registration failed: ${regResp.body}');
+        }
+
+        // 2) Enumerator API
+        // final sel = _districts.firstWhere((d) => d['id'] == _districtId);
+        // final districtUic = sel['district_uic'] as String;
+        // final enumBody = {
+        //   'name': _username.text.trim(),
+        //   'phone': _phone.text.trim(),
+        //   'district': districtUic,
+        // };
+        // final enumResp = await http.post(
+        //   Uri.parse('http://56.228.26.125:8000/enumerator/'),
+        //   headers: {'Content-Type': 'application/json'},
+        //   body: jsonEncode(enumBody),
+        // );
+        // if (enumResp.statusCode != 200 && enumResp.statusCode != 201) {
+        //   throw Exception(
+        //     jsonDecode(enumResp.body)['message'] ?? 'Enumerator creation failed',
+        //   );
+        // }
+
+        // 3) Save locally exactly as before
+        final db = DatabaseHelper();
+        final uid = await db.insertUser(
+          username: _username.text.trim(),
+          email: _email.text.trim(),
+          designation: _designation.text.trim(),
+          password: _password.text,
+        );
+        await db.saveCurrentUser(uid);
+        await db.insertEnumerator(
+          name: _username.text.trim(),
+          phone: _phone.text.trim(),
+          districtId: _districtId!,
+          userId: uid,
+        );
+
+        // 4) Navigate to login
+        Navigator.pushReplacementNamed(context, '/login');
+      } catch (e) {
+        CustomSnackbar.show(
+          context,
+          e.toString(),
+          type: SnackbarType.error,
+        ); 
+      } finally {
+        setState(() => _isLoading = false);
+      }
+    }
+
+    InputDecoration _inputDecoration(String label) {
+      return InputDecoration(
+        labelText: label,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        filled: true,
+        fillColor: Theme.of(context).colorScheme.surface,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+      );
+    }
 
   @override
   Widget build(BuildContext context) {
@@ -140,7 +198,7 @@ class _SignupScreenState extends State<SignupScreen> {
               ),
               const SizedBox(height: 24),
               ElevatedButton(
-                onPressed: _submit,
+                onPressed: _isLoading ? null : _submit,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Theme.of(context).colorScheme.primary,
                   foregroundColor: Theme.of(context).colorScheme.onPrimary,
@@ -148,10 +206,20 @@ class _SignupScreenState extends State<SignupScreen> {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  textStyle:
+                      const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
-                child: const Text('Create Account', style: TextStyle(color: Colors.white)),
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text('Create Account', style: TextStyle(color: Colors.white)),
               ),
             ],
           ),
@@ -159,4 +227,5 @@ class _SignupScreenState extends State<SignupScreen> {
       ),
     );
   }
+
 }

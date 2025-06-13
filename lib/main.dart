@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
+import 'package:pci_survey_application/database_helper.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:provider/provider.dart';
 import 'landing_page.dart';
@@ -16,6 +17,7 @@ import 'distress_form.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:workmanager/workmanager.dart';
 import 'services/uploader.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// This is the entry point for background workmanager tasks.
 void callbackDispatcher() {
@@ -26,6 +28,11 @@ void callbackDispatcher() {
   });
 }
 
+
+Future<bool> _isUserLoggedIn() async {
+  final prefs = await SharedPreferences.getInstance();
+  return prefs.getString('auth_token') != null;
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -83,16 +90,52 @@ class PCISurveyApp extends StatelessWidget {
     return MaterialApp(
       title: 'PCI Survey',
       debugShowCheckedModeBanner: false,
-      theme: AppThemeFactory.createLightTheme(),
-      darkTheme: AppThemeFactory.createDarkTheme(),
+      theme: AppThemeFactory.createLightTheme(
+        primary: themeProvider.primaryColor,
+      ),
+      darkTheme: AppThemeFactory.createDarkTheme(
+        primary: themeProvider.primaryColor,
+      ),
       themeMode: themeProvider.themeMode,
-      initialRoute: '/',
+      home: FutureBuilder<bool>(
+        future: _isUserLoggedIn(),
+        builder: (context, authSnap) {
+          if (authSnap.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+          if (authSnap.hasData && authSnap.data == true) {
+            // user has a token, now load the local user record
+            return FutureBuilder<Map<String, dynamic>?>(
+              future: DatabaseHelper().getCurrentUser(),
+              builder: (context, userSnap) {
+                if (userSnap.connectionState == ConnectionState.waiting) {
+                  return const Scaffold(
+                    body: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                if (userSnap.hasData && userSnap.data != null) {
+                  // re-save in case you want to refresh timestamp etc.
+                  DatabaseHelper().saveCurrentUser(userSnap.data!['id'] as int);
+                  return const DashboardScreen();
+                }
+                // token existed but no local user → fall back
+                return const LandingPage();
+              },
+            );
+          }
+          // no token → show landing (or login)
+          return const LandingPage();
+        },
+      ),
+
+      // keep all your named routes exactly as before
       routes: {
-        '/':               (_) => const LandingPage(),
         '/login':          (_) => const LoginScreen(),
         '/signup':         (_) => const SignupScreen(),
         '/dashboard':      (_) => const DashboardScreen(),
-        '/surveyDashboard': (context) {
+        '/surveyDashboard':(context) {
           final surveyId = ModalRoute.of(context)!.settings.arguments as int;
           return SurveyDashboard(surveyId: surveyId);
         },

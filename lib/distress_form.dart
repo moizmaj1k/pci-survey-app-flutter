@@ -904,8 +904,8 @@ class _DistressFormState extends State<DistressForm> {
                               ),
                             ),
                             style: OutlinedButton.styleFrom(
-                              side: const BorderSide(
-                                color: AppColors.primary,
+                              side: BorderSide(
+                                color: Theme.of(context).colorScheme.primary,
                                 width: 2,
                               ),
                               shape: RoundedRectangleBorder(
@@ -931,8 +931,8 @@ class _DistressFormState extends State<DistressForm> {
                               ),
                             ),
                             style: OutlinedButton.styleFrom(
-                              side: const BorderSide(
-                                color: AppColors.primary,
+                              side: BorderSide(
+                                color: Theme.of(context).colorScheme.primary,
                                 width: 2,
                               ),
                               shape: RoundedRectangleBorder(

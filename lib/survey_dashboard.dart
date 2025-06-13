@@ -1306,7 +1306,7 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
             // 6) “Upload KMZ” button (just below recenter)
             FloatingActionButton(
               mini: true,
-              backgroundColor: AppColors.primary,
+              backgroundColor: Theme.of(context).colorScheme.primary,
               heroTag: 'uploadKmzBtn',
               onPressed: _pickAndPlotKmz,
               child: const Icon(
@@ -1549,7 +1549,7 @@ class _SurveyDashboardState extends State<SurveyDashboard> {
         bottom: 80, // 16 px from bottom + 56 px (FAB height) + 8 px gap
         right: 16,
         child: FloatingActionButton(
-          backgroundColor: AppColors.primary,
+          backgroundColor: Theme.of(context).colorScheme.primary,
           heroTag: 'listDistressBtn',
           mini: true,
           onPressed: () => _showDistressListSheet(isCompleted),
