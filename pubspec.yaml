@@ -88,8 +88,10 @@ dependencies:
   workmanager: ^0.6.0
 
   # ─── ISAR ───────────────────────────────────────────
-  isar:              4.0.0-dev.14
-  isar_flutter_libs: 4.0.0-dev.14
+  # isar:              4.0.0-dev.14
+  # isar_flutter_libs: 4.0.0-dev.14
+  # isar:              ^3.1.0+1
+  # isar_flutter_libs: 3.1.0
 
   # ─── FILES ───────────────────────────────────────────
   file_picker: ^10.1.9
@@ -103,6 +105,9 @@ dependencies:
 dependency_overrides:
   geolocator_android: 5.0.1+1 # 4.6.1
   win32: ^5.13.0
+  # isar_flutter_libs:
+  #   git:
+  #     url: https://github.com/MrLittleWhite/isar_flutter_libs.git
 
 dev_dependencies:
   flutter_test:
